@@ -10,6 +10,9 @@
 * [architecture.md](architecture.md)
   에이전트 흐름과 브로커 연동 경계를 설명한다.
   파이프라인 단계, 오케스트레이션 방식, 어댑터 경계가 바뀌면 갱신한다.
+* [development-plan.md](development-plan.md)
+  현재 아키텍처 구조를 구현하기 위한 소프트웨어 뼈대 개발 계획을 설명한다.
+  패키지 경계, 인터페이스, 조립 방식, 구조 검증 순서가 바뀌면 갱신한다.
 * [agent-structure.md](agent-structure.md)
   각 에이전트의 책임과 데이터 흐름을 설명한다.
   에이전트 역할 추가, 삭제, 책임 이동 시 갱신한다.
