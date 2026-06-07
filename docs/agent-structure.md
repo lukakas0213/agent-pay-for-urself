@@ -6,6 +6,8 @@
 
 → Web UI
 
+→ FastAPI (`/decisions`)
+
 → 메인 에이전트
 
 → 데이터 수집 에이전트
@@ -20,9 +22,13 @@
 
 → 로그/평가 에이전트
 
-→ 결과 저장 및 Web UI 제공
+→ `WorkflowResult` 생성
 
-현재 코드 기준으로는 마지막 단계가 영속 저장까지 이어지지 않고 `WorkflowResult` 반환으로 종료된다.
+→ In-memory workflow repository에 `run_id`와 함께 저장
+
+→ Web UI 또는 콘솔 보조 API (`/console/interactions`)에서 조회
+
+현재 코드 기준으로는 마지막 단계가 프로세스 메모리 저장까지만 이어지고, 영속 저장까지는 구현되어 있지 않다.
 
 ## 현재 구현 에이전트
 
@@ -31,8 +37,8 @@
 담당 업무:
 
 * 요청된 심볼 목록을 정규화한다.
-* 현재는 고정된 가격, 뉴스, 재무지표를 반환하는 stub 역할을 한다.
-* 실제 외부 데이터 연동은 아직 구현되어 있지 않다.
+* `MarketDataProvider` 인터페이스를 통해 종목별 데이터를 가져온다.
+* 현재 기본 provider는 고정 가격, 뉴스, 재무지표를 반환하는 stub 구현이다.
 
 ### 데이터 분석 에이전트
 
@@ -61,15 +67,33 @@
 담당 업무:
 
 * 주문 계획 생성
-* 현재는 실제 주문 전송 없이 `OrderPlan`만 생성한다.
-* 실브로커 호출은 아직 구현되어 있지 않다.
+* 실제 브로커 제출은 `BrokerAdapter` 경계 뒤로 분리한다.
+* 현재 기본 adapter는 `NoopBrokerAdapter`이며 실주문은 전송하지 않는다.
 
 ### 로그/평가 에이전트
 
 담당 업무:
 
 * 의사결정 수와 주문 계획 수를 요약한다.
-* 현재는 영속 저장이 아닌 메모리 상의 `EvaluationLog`만 생성한다.
+* 현재는 `EvaluationLog`를 만들고, API 서비스 계층이 전체 `WorkflowResult`를 메모리 저장소에 보관한다.
+
+## API 보조 계층
+
+### DecisionWorkflowService
+
+담당 업무:
+
+* `MainAgent` 실행
+* 실행 결과를 저장소에 저장
+* API 응답용 `run_id`를 반환
+
+### ConsoleAssistantService
+
+담당 업무:
+
+* 저장된 `WorkflowResult`를 바탕으로 설명 응답 생성
+* `/console/interactions` 요청에 deterministic reply 제공
+* 기존 `/agent/interactions`는 deprecated alias로 유지
 
 ## 미구현 에이전트 템플릿
 

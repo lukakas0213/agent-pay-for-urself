@@ -25,8 +25,7 @@ class DataAnalysisAgent:
             else FINANCIAL_SCORE_NEUTRAL
         )
         rationale = (
-            f"{data.symbol}: price, news, and financial data were reviewed; "
-            f"PE ratio={pe_ratio}."
+            f"{data.symbol}: price, news, and financial data were reviewed; PE ratio={pe_ratio}."
         )
         return AnalysisSignal(
             symbol=data.symbol,

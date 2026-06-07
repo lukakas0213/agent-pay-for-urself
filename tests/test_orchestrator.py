@@ -1,5 +1,38 @@
+from agent_pay_for_urself.adapters.broker import BrokerAdapter, BrokerSubmission
+from agent_pay_for_urself.agents import DataCollectionAgent, OrderExecutionAgent
 from agent_pay_for_urself.orchestrator import MainAgent
-from agent_pay_for_urself.schemas import InvestmentRequest
+from agent_pay_for_urself.schemas import InvestmentRequest, MarketData, OrderPlan, TradeDecision
+
+
+class RecordingMarketDataProvider:
+    def __init__(self) -> None:
+        self.requested_symbols: list[str] = []
+
+    def get_market_data(self, symbol: str) -> MarketData:
+        self.requested_symbols.append(symbol)
+        return MarketData(
+            symbol=symbol,
+            latest_price=123.45,
+            news_headlines=(f"{symbol} custom update",),
+            financial_metrics={"pe_ratio": 18.0},
+        )
+
+
+class RecordingBrokerAdapter(BrokerAdapter):
+    def __init__(self) -> None:
+        self.submitted_symbols: list[str] = []
+
+    def submit_order(self, order_plan: OrderPlan) -> BrokerSubmission:
+        self.submitted_symbols.append(order_plan.symbol)
+        return BrokerSubmission(
+            symbol=order_plan.symbol,
+            accepted=True,
+            broker_order_id=f"broker-{order_plan.symbol}",
+            message="submitted",
+        )
+
+    def get_order_status(self, broker_order_id: str) -> str:
+        return "filled"
 
 
 def test_main_agent_runs_minimum_workflow() -> None:
@@ -26,3 +59,43 @@ def test_order_plan_requires_risk_approval() -> None:
     assert decision.risk_approved is False
     assert order.should_submit is False
     assert order.quantity == 0
+
+
+def test_main_agent_uses_configured_market_data_provider() -> None:
+    provider = RecordingMarketDataProvider()
+    request = InvestmentRequest(symbols=("aapl",), max_position_weight=0.2)
+    agent = MainAgent(data_collection_agent=DataCollectionAgent(market_data_provider=provider))
+
+    result = agent.run(request)
+
+    assert provider.requested_symbols == ["AAPL"]
+    assert result.market_data[0].latest_price == 123.45
+    assert result.market_data[0].financial_metrics["pe_ratio"] == 18.0
+
+
+def test_order_execution_submits_only_executable_orders_through_broker_adapter() -> None:
+    broker_adapter = RecordingBrokerAdapter()
+    order_execution_agent = OrderExecutionAgent(broker_adapter=broker_adapter)
+    orders = order_execution_agent.plan_orders(
+        (
+            TradeDecision(
+                symbol="AAPL",
+                action="BUY",
+                confidence=0.9,
+                rationale="buy signal",
+                risk_approved=True,
+            ),
+            TradeDecision(
+                symbol="MSFT",
+                action="HOLD",
+                confidence=0.4,
+                rationale="hold signal",
+                risk_approved=True,
+            ),
+        )
+    )
+
+    submissions = order_execution_agent.submit_orders(orders)
+
+    assert [submission.symbol for submission in submissions] == ["AAPL"]
+    assert broker_adapter.submitted_symbols == ["AAPL"]

@@ -30,6 +30,8 @@
 * 에이전트 구현: `agent_pay_for_urself/agents/`
 * 오케스트레이터: `agent_pay_for_urself/orchestrator.py`
 * 스키마: `agent_pay_for_urself/schemas.py`
+* 외부 연동 경계: `agent_pay_for_urself/adapters/`
+* 워크플로우 저장소: `agent_pay_for_urself/repositories/`
 * 프론트엔드: `frontend/app/`
 * 테스트: `tests/`
 
