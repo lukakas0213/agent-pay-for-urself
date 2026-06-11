@@ -1,7 +1,13 @@
 from agent_pay_for_urself.adapters.broker import BrokerAdapter, BrokerSubmission
 from agent_pay_for_urself.agents import DataCollectionAgent, OrderExecutionAgent
 from agent_pay_for_urself.orchestrator import MainAgent
-from agent_pay_for_urself.schemas import InvestmentRequest, MarketData, OrderPlan, TradeDecision
+from agent_pay_for_urself.schemas import (
+    InvestmentMandate,
+    InvestmentRequest,
+    MarketData,
+    OrderPlan,
+    TradeDecision,
+)
 
 
 class RecordingMarketDataProvider:
@@ -99,3 +105,19 @@ def test_order_execution_submits_only_executable_orders_through_broker_adapter()
 
     assert [submission.symbol for submission in submissions] == ["AAPL"]
     assert broker_adapter.submitted_symbols == ["AAPL"]
+
+
+def test_main_agent_blocks_symbols_outside_user_mandate() -> None:
+    request = InvestmentRequest(
+        symbols=("AAPL",),
+        max_position_weight=0.2,
+        mandate=InvestmentMandate(allowed_symbols=("MSFT",), max_position_weight=0.2),
+    )
+
+    result = MainAgent().run(request)
+
+    assert result.mandate.allowed_symbols == ("MSFT",)
+    assert result.mandate_violations[0].rule == "allowed_symbols"
+    assert result.trade_decisions[0].action == "HOLD"
+    assert result.trade_decisions[0].risk_approved is False
+    assert result.order_plans[0].should_submit is False

@@ -15,7 +15,10 @@
 * 구조화된 멀티 에이전트 워크플로우 골격 제공
 * 데이터 수집 -> 분석 -> 리스크 검증 -> 매수/매도 판단 -> 주문 계획 -> 평가 요약 흐름 제공
 * 설명 가능한 투자 판단 결과와 주문 계획 스키마 제공
+* Yahoo Finance(`yfinance`)를 첫 실데이터 provider 옵션으로 제공
 * 한국투자증권 Open API를 첫 브로커 어댑터 대상으로 두는 방향 확정
+* OpenAI Responses API를 각 에이전트에 연결할 수 있는 선택적 공통 LLM 템플릿 계층 제공
+* 사용자 요구사항을 `InvestmentMandate`로 구조화하고 메인 에이전트가 정책 가드레일로 집행하는 기본 경계 제공
 
 ## 장기 운영 목표
 
@@ -41,29 +44,39 @@
 
 * Frontend (Next.js)
 * Backend API (FastAPI)
-* Main Agent / Agent Orchestrator (LangGraph)
+* Main Agent / Sequential Orchestrator
 * Data Collection Agent
 * Data Analysis Agent
 * Risk Management Agent
 * Buy/Sell Decision Agent
 * Order Execution Agent
 * Log/Evaluation Agent
+* Shared Agent LLM Template Layer
+* Investment Mandate Schema
+* Policy Guardrail
+* Market Data Provider Boundary
+* Broker Adapter Boundary
+* In-memory Workflow Run Repository
 
 ## 확장 컴포넌트 템플릿
 
 아래 컴포넌트는 저장소 목표에는 언급될 수 있지만 현재 구현 컴포넌트로 간주하지 않는다.
 
-* Broker Adapter: `TBD`
-* Persistent Storage: `TBD`
+* Durable Persistent Storage: `TBD`
 * Cache Layer: `TBD`
 * Search / Vector Store: `TBD`
+* Compiled LangGraph Runtime: `TBD`
 
 ## 현재 최소 구현 구조
 
 ```text
 agent_pay_for_urself/
-  api/                 # FastAPI 진입점
+  api/                 # FastAPI 진입점과 API 조립
   agents/              # 단일 책임 에이전트
+  llm/                 # OpenAI 기반 공통 LLM 템플릿 계층
+  policies/            # 사용자 mandate 기반 정책 가드레일
+  adapters/            # 시장데이터/브로커 외부 연동 경계
+  repositories/        # 워크플로우 실행 결과 저장소
   orchestrator.py      # 메인 에이전트 워크플로우
   schemas.py           # 에이전트 간 구조화된 입출력
 docs/
@@ -81,9 +94,13 @@ tests/                 # 백엔드 워크플로우 테스트
 
 ## 현재 구현 상태
 
-현재 최소 구현에서는 실제 외부 데이터 API, 증권사 API, 데이터베이스 저장을 호출하지 않는다.
+현재 최소 구현에서는 영속 데이터베이스 저장과 실브로커 주문을 기본 경로로 사용하지 않는다.
 
-실제 연동은 명시적인 adapter 또는 repository 계층을 통해 추가한다.
+시장 데이터는 기본적으로 deterministic stub provider를 사용하고, `MARKET_DATA_PROVIDER=yahoo`를 설정하면 `yfinance` 기반 Yahoo Finance provider를 통해 실데이터를 수집할 수 있다. 실제 연동은 명시적인 adapter 또는 repository 계층을 통해 추가한다.
+
+선택적으로 `OPENAI_API_KEY`를 설정하면 공통 LLM 템플릿 계층이 OpenAI Responses API를 사용해 각 에이전트의 구조화 출력을 생성할 수 있다. 키가 없거나 응답이 유효하지 않으면 현재 deterministic fallback 로직을 사용한다.
+
+`InvestmentMandate`는 사용자의 요구사항과 제약을 담는 실행 경계이며, `PolicyGuardrail`은 현재 허용/제외 심볼 위반을 차단한다.
 
 실거래 브로커 기본 방향은 한국투자증권 Open API이며, 미국 주식 매매는 해외주식 주문 API를 통해 연결한다.
 
@@ -91,9 +108,9 @@ tests/                 # 백엔드 워크플로우 테스트
 
 ### 외부 데이터 공급자
 
-* 상태: `TBD`
-* 확정된 입력/출력 계약: 없음
-* 비고: 현재 `DataCollectionAgent`는 deterministic stub
+* 상태: `Stub + Yahoo Finance option implemented`
+* 확정된 입력/출력 계약: `MarketDataProvider.get_market_data`
+* 비고: 기본 경로는 deterministic stub provider이며, `MARKET_DATA_PROVIDER=yahoo`일 때 `yfinance` 기반 Yahoo Finance provider를 사용
 
 ### 브로커 주문 전송
 
@@ -105,3 +122,9 @@ tests/                 # 백엔드 워크플로우 테스트
 
 * 상태: `TBD`
 * 확정된 저장 모델: 없음
+
+### 에이전트별 프롬프트 상세화
+
+* 상태: `TBD`
+* 현재 구현: 공통 LLM 템플릿만 존재
+* 확정된 프롬프트 계약: 없음

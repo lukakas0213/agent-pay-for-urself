@@ -216,7 +216,7 @@ MVP의 작업 우선순위는 아래 순서로 본다.
 
 아래 항목은 MVP 이후에 별도 계획으로 확정한다.
 
-* 실제 시장 데이터 provider
+* 추가 실제 시장 데이터 provider 또는 공식 데이터 소스
 * 고급 analyzer 구조
 * 리스크 policy 세분화
 * 한국투자증권 Open API broker adapter

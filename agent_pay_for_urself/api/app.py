@@ -2,7 +2,13 @@
 
 from fastapi import FastAPI
 
-from agent_pay_for_urself.api.routes import console_router, decisions_router, health_router
+from agent_pay_for_urself.api.routes import (
+    console_router,
+    decisions_router,
+    experiments_router,
+    health_router,
+    market_data_router,
+)
 
 
 def create_app() -> FastAPI:
@@ -17,6 +23,8 @@ def create_app() -> FastAPI:
         ),
     )
     app.include_router(health_router)
+    app.include_router(market_data_router)
     app.include_router(decisions_router)
+    app.include_router(experiments_router)
     app.include_router(console_router)
     return app

@@ -8,8 +8,11 @@
   프로젝트 목표, 현재 범위, 기본 브로커 방향을 설명한다.
   프로젝트 방향이 바뀌거나 기본 대상 시장/브로커가 바뀌면 갱신한다.
 * [architecture.md](architecture.md)
-  에이전트 흐름과 브로커 연동 경계를 설명한다.
-  파이프라인 단계, 오케스트레이션 방식, 어댑터 경계가 바뀌면 갱신한다.
+  에이전트 흐름과 브로커 연동 경계, 선택적 LLM 템플릿 계층을 설명한다.
+  파이프라인 단계, 오케스트레이션 방식, 정책/LLM/adapters 경계가 바뀌면 갱신한다.
+* [api-contracts.md](api-contracts.md)
+  현재 FastAPI 공개 엔드포인트의 요청/응답 계약, 상태 코드, 운영상 의미를 한 곳에 모아 둔다.
+  `agent_pay_for_urself/api/routes/`, `agent_pay_for_urself/api/models/`, `agent_pay_for_urself/api/services/`의 공개 계약이 바뀌면 갱신한다.
 * [development-plan.md](development-plan.md)
   현재 아키텍처 구조를 구현하기 위한 소프트웨어 뼈대 개발 계획을 설명한다.
   패키지 경계, 인터페이스, 조립 방식, 구조 검증 순서가 바뀌면 갱신한다.
@@ -30,9 +33,11 @@
 * 에이전트 구현: `agent_pay_for_urself/agents/`
 * 오케스트레이터: `agent_pay_for_urself/orchestrator.py`
 * 스키마: `agent_pay_for_urself/schemas.py`
+* LLM 템플릿 계층: `agent_pay_for_urself/llm/`
+* 정책 가드레일: `agent_pay_for_urself/policies/`
 * 외부 연동 경계: `agent_pay_for_urself/adapters/`
-* 워크플로우 저장소: `agent_pay_for_urself/repositories/`
-* 프론트엔드: `frontend/app/`
+* 워크플로우 및 실험 저장소: `agent_pay_for_urself/repositories/`
+* 프론트엔드 및 실험실 UI: `frontend/app/`
 * 테스트: `tests/`
 
 ## 문서 갱신 원칙

@@ -8,6 +8,7 @@ from agent_pay_for_urself.adapters.broker import (
 from agent_pay_for_urself.adapters.market_data import (
     MarketDataProvider,
     StubMarketDataProvider,
+    YahooFinanceMarketDataProvider,
 )
 
 __all__ = [
@@ -16,4 +17,5 @@ __all__ = [
     "MarketDataProvider",
     "NoopBrokerAdapter",
     "StubMarketDataProvider",
+    "YahooFinanceMarketDataProvider",
 ]

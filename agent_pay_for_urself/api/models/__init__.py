@@ -6,10 +6,21 @@ from agent_pay_for_urself.api.models.decisions import (
     DecisionRequest,
     DecisionResponse,
     EvaluationLogItem,
+    MandateItem,
+    MandateRequest,
+    MandateViolationItem,
     MarketDataItem,
     OrderItem,
     RiskAssessmentItem,
+    RiskTolerance,
+    RuntimeSummaryItem,
     TradeAction,
+)
+from agent_pay_for_urself.api.models.experiments import (
+    AgentPromptOverridesRequest,
+    ExperimentCreateRequest,
+    ExperimentListItem,
+    ExperimentResponse,
 )
 from agent_pay_for_urself.api.models.interactions import (
     AgentInteractionRequest,
@@ -17,6 +28,11 @@ from agent_pay_for_urself.api.models.interactions import (
 )
 
 __all__ = [
+    "RuntimeSummaryItem",
+    "ExperimentResponse",
+    "ExperimentListItem",
+    "ExperimentCreateRequest",
+    "AgentPromptOverridesRequest",
     "AgentInteractionRequest",
     "AgentInteractionResponse",
     "AnalysisSignalItem",
@@ -24,8 +40,12 @@ __all__ = [
     "DecisionRequest",
     "DecisionResponse",
     "EvaluationLogItem",
+    "MandateItem",
+    "MandateRequest",
+    "MandateViolationItem",
     "MarketDataItem",
     "OrderItem",
     "RiskAssessmentItem",
+    "RiskTolerance",
     "TradeAction",
 ]

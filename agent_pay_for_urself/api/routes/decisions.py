@@ -8,6 +8,7 @@ from agent_pay_for_urself.api.dependencies import get_decision_workflow_service
 from agent_pay_for_urself.api.mappers.workflow import to_decision_response
 from agent_pay_for_urself.api.models import DecisionRequest, DecisionResponse
 from agent_pay_for_urself.api.services.decision_workflow import DecisionWorkflowService
+from agent_pay_for_urself.schemas import InvestmentMandate
 
 router = APIRouter(tags=["decisions"])
 WorkflowService = Annotated[DecisionWorkflowService, Depends(get_decision_workflow_service)]
@@ -33,5 +34,23 @@ def create_decision(
     run_id, result = workflow_service.run(
         symbols=request.symbols,
         max_position_weight=request.max_position_weight,
+        mandate=_to_investment_mandate(request),
     )
-    return to_decision_response(run_id, result)
+    return to_decision_response(run_id, result, workflow_service.runtime_summary())
+
+
+def _to_investment_mandate(request: DecisionRequest) -> InvestmentMandate | None:
+    if request.mandate is None:
+        return None
+
+    return InvestmentMandate(
+        objective=request.mandate.objective,
+        allowed_symbols=tuple(request.mandate.allowed_symbols),
+        excluded_symbols=tuple(request.mandate.excluded_symbols),
+        max_position_weight=request.max_position_weight,
+        max_order_notional=request.mandate.max_order_notional,
+        min_cash_weight=request.mandate.min_cash_weight,
+        risk_tolerance=request.mandate.risk_tolerance,
+        requires_approval_for_live_orders=request.mandate.requires_approval_for_live_orders,
+        user_notes=request.mandate.user_notes,
+    )

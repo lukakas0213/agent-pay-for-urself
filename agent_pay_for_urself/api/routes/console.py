@@ -35,7 +35,11 @@ def _resolve_current_result(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"workflow run not found: {request.run_id}",
             )
-        return to_decision_response(request.run_id, workflow_result)
+        return to_decision_response(
+            request.run_id,
+            workflow_result,
+            workflow_service.runtime_summary(),
+        )
 
     return request.current_result
 

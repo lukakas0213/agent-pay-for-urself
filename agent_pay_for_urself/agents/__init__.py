@@ -1,5 +1,6 @@
 """Agent implementations coordinated by the main orchestrator."""
 
+from agent_pay_for_urself.agents.base import LLMEnabledAgent
 from agent_pay_for_urself.agents.buy_sell import BuySellAgent
 from agent_pay_for_urself.agents.data_analysis import DataAnalysisAgent
 from agent_pay_for_urself.agents.data_collection import DataCollectionAgent
@@ -11,6 +12,7 @@ __all__ = [
     "BuySellAgent",
     "DataAnalysisAgent",
     "DataCollectionAgent",
+    "LLMEnabledAgent",
     "LogEvaluationAgent",
     "OrderExecutionAgent",
     "RiskManagementAgent",

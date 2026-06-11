@@ -17,7 +17,9 @@ body {
 }
 
 button,
-input {
+input,
+select,
+textarea {
   font: inherit;
 }
 
@@ -109,6 +111,84 @@ p {
   color: #b42318;
 }
 
+
+.mode-switch {
+  display: inline-flex;
+  gap: 8px;
+  margin-bottom: 18px;
+  border: 1px solid #d6e0ea;
+  border-radius: 999px;
+  background: #ffffff;
+  padding: 5px;
+}
+
+.mode-button {
+  min-height: 36px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #344054;
+  padding: 0 16px;
+}
+
+.mode-button-active,
+.mode-button:hover {
+  background: #18212f;
+  color: #ffffff;
+}
+
+.experiment-panel,
+.prompt-panel,
+.history-panel,
+.experiment-summary {
+  display: grid;
+  gap: 14px;
+  border: 1px solid #e3e9f0;
+  border-radius: 8px;
+  background: #fbfdff;
+  padding: 14px;
+}
+
+.prompt-panel textarea {
+  min-height: 104px;
+}
+
+.history-list {
+  display: grid;
+  gap: 8px;
+}
+
+.history-item {
+  display: grid;
+  gap: 4px;
+  min-height: auto;
+  border: 1px solid #dce5ee;
+  background: #ffffff;
+  color: #18212f;
+  padding: 10px 12px;
+}
+
+.history-item:hover {
+  border-color: #2f6f73;
+  box-shadow: 0 0 0 3px rgba(47, 111, 115, 0.1);
+}
+
+.history-item span,
+.history-item small,
+.experiment-summary span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.experiment-summary {
+  margin-top: 16px;
+}
+
+.experiment-summary > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
 .console-layout {
   display: grid;
   grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
@@ -156,7 +236,9 @@ p {
   font-weight: 700;
 }
 
-input {
+input,
+select,
+textarea {
   width: 100%;
   min-height: 42px;
   border: 1px solid #b9c6d4;
@@ -166,7 +248,15 @@ input {
   padding: 0 12px;
 }
 
-input:focus {
+textarea {
+  min-height: 86px;
+  padding: 10px 12px;
+  resize: vertical;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
   border-color: #2f6f73;
   outline: 3px solid rgba(47, 111, 115, 0.14);
 }
@@ -189,7 +279,9 @@ button:disabled {
   cursor: not-allowed;
 }
 
-.request-preview {
+.request-preview,
+.mandate-panel,
+.mandate-summary {
   display: grid;
   grid-template-columns: 1fr;
   gap: 4px;
@@ -201,6 +293,71 @@ button:disabled {
 
 .request-preview strong + span {
   margin-top: 8px;
+}
+
+.mandate-panel {
+  gap: 14px;
+  background: #fbfdff;
+}
+
+.toggle-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #344054;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.toggle-field input {
+  width: 18px;
+  min-height: 18px;
+  accent-color: #2f6f73;
+}
+
+.mandate-summary {
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.mandate-summary > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.mandate-summary span {
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.mandate-summary strong {
+  color: #18212f;
+}
+
+.mandate-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mandate-chips span {
+  border: 1px solid #dce5ee;
+  border-radius: 999px;
+  background: #ffffff;
+  padding: 5px 9px;
+}
+
+.violation-list {
+  display: grid;
+  gap: 6px;
+  border-top: 1px solid #dce5ee;
+  padding-top: 10px;
+}
+
+.violation-list p {
+  color: #b42318;
+  font-weight: 700;
 }
 
 .error-message {

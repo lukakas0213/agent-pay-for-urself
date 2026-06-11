@@ -4,6 +4,43 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 TradeAction = Literal["BUY", "SELL", "HOLD"]
+RiskTolerance = Literal["low", "medium", "high"]
+
+
+@dataclass(frozen=True)
+class AgentPromptOverrides:
+    """Optional per-agent experiment instructions appended to default prompts."""
+
+    data_collection: str = ""
+    data_analysis: str = ""
+    risk_management: str = ""
+    buy_sell: str = ""
+    order_execution: str = ""
+    log_evaluation: str = ""
+
+
+@dataclass(frozen=True)
+class InvestmentMandate:
+    """User-owned operating boundary that the main agent must enforce."""
+
+    objective: str = "Evaluate requested US equity symbols conservatively."
+    allowed_symbols: tuple[str, ...] = field(default_factory=tuple)
+    excluded_symbols: tuple[str, ...] = field(default_factory=tuple)
+    max_position_weight: float = 0.2
+    max_order_notional: float | None = None
+    min_cash_weight: float | None = None
+    risk_tolerance: RiskTolerance = "medium"
+    requires_approval_for_live_orders: bool = True
+    user_notes: str = ""
+
+
+@dataclass(frozen=True)
+class MandateViolation:
+    """One policy violation found while checking workflow outputs."""
+
+    symbol: str
+    rule: str
+    message: str
 
 
 @dataclass(frozen=True)
@@ -12,6 +49,8 @@ class InvestmentRequest:
 
     symbols: tuple[str, ...]
     max_position_weight: float = 0.2
+    mandate: InvestmentMandate | None = None
+    prompt_overrides: AgentPromptOverrides = field(default_factory=AgentPromptOverrides)
 
 
 @dataclass(frozen=True)
@@ -86,9 +125,11 @@ class WorkflowResult:
     """Full result returned by the main agent orchestrator."""
 
     request: InvestmentRequest
+    mandate: InvestmentMandate
     market_data: tuple[MarketData, ...]
     analysis_signals: tuple[AnalysisSignal, ...]
     risk_assessments: tuple[RiskAssessment, ...]
     trade_decisions: tuple[TradeDecision, ...]
     order_plans: tuple[OrderPlan, ...]
     evaluation_log: EvaluationLog
+    mandate_violations: tuple[MandateViolation, ...] = field(default_factory=tuple)

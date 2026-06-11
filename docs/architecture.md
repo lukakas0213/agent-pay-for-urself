@@ -3,9 +3,11 @@
 ## Current Scope
 
 * The current implementation is a minimum workflow skeleton.
-* Real market data, live broker submission, and durable persistent storage are not wired yet.
-* Broker-facing code and market-data access are introduced behind explicit adapter boundaries.
+* Live market data can now be enabled through a Yahoo Finance provider, while broker submission and durable persistent storage remain unwired.
 * Workflow results are currently stored only in an in-memory repository so console follow-up requests can resolve a prior run by `run_id`.
+* Each workflow agent can now optionally route through a shared LLM template layer backed by OpenAI Responses API.
+* `MainAgent` owns the user mandate for each run and enforces it through `PolicyGuardrail`.
+* If `OPENAI_API_KEY` is not configured, the workflow falls back to deterministic in-process logic and does not call an external LLM.
 
 ## Broker Direction
 
@@ -29,6 +31,8 @@ flowchart LR
     OE[주문 실행 에이전트]
     LE[로그/평가 에이전트]
 
+    LLM[Shared LLM Template Layer]
+    PG[Policy Guardrail]
     MDP[Market Data Provider]
     BA[Broker Adapter]
     WR[Workflow Run Repository]
@@ -46,8 +50,16 @@ flowchart LR
     MA --> LE
 
     DC --> MDP
+    DC -. optional .-> LLM
+    DA -. optional .-> LLM
+    RM -. optional .-> LLM
+    BS -. optional .-> LLM
+    OE -. optional .-> LLM
+    LE -. optional .-> LLM
+    MA --> PG
+    PG --> BS
+    PG --> OE
     OE -. live submit boundary .-> BA
-    API --> WR
 ```
 
 ## API Layout
@@ -55,20 +67,26 @@ flowchart LR
 * `agent_pay_for_urself/api/main.py` only exposes the ASGI entrypoint.
 * `agent_pay_for_urself/api/app.py` creates the FastAPI application and registers routers.
 * `agent_pay_for_urself/api/routes/` contains HTTP endpoints.
-* `agent_pay_for_urself/api/models/` contains public Pydantic request and response models.
+* `agent_pay_for_urself/api/models/` contains public Pydantic request and response models, including optional mandate input and mandate violation output.
 * `agent_pay_for_urself/api/mappers/` converts internal workflow dataclasses into API responses.
 * `agent_pay_for_urself/api/services/` contains API-facing workflow and console assistant logic.
 * `/console/interactions` is the primary console-assistant endpoint.
+* `/experiments` runs and stores Web UI experiment-lab requests with experiment metadata, decision input, prompt overrides, runtime summary, and workflow result.
 * `/agent/interactions` remains as a deprecated compatibility alias.
 
 ## Implementation Notes
 
 * `MainAgent` is the only component that coordinates other agents.
+* The current runtime is still a sequential Python orchestrator. `langgraph` is installed as a dependency, but the workflow has not yet been migrated to a compiled LangGraph runtime.
 * The current workflow order is collection -> analysis -> risk assessment -> buy/sell decision -> order planning -> evaluation.
 * Agent outputs use structured dataclasses in `agent_pay_for_urself.schemas`.
-* `DataCollectionAgent` now depends on a `MarketDataProvider` boundary and the default implementation is `StubMarketDataProvider`.
+* `InvestmentMandate` captures the user-owned operating boundary for a run.
+* `PolicyGuardrail` clamps decisions and order plans that violate allowed or excluded symbols before evaluation logging.
+* `agent_pay_for_urself/llm/` contains the shared OpenAI client, JSON payload helpers, and schema parsing helpers used by LLM-enabled agents.
+* `DataCollectionAgent` depends on a `MarketDataProvider` boundary; `StubMarketDataProvider` remains the deterministic default and `YahooFinanceMarketDataProvider` can be selected with `MARKET_DATA_PROVIDER=yahoo`.
 * `OrderExecutionAgent` currently creates order plans only; live broker submission is split behind `BrokerAdapter` and the default implementation is `NoopBrokerAdapter`.
-* `DecisionWorkflowService` stores `WorkflowResult` values in `InMemoryWorkflowRunRepository` and returns a `run_id` to the API caller.
+* `DecisionWorkflowService` stores `WorkflowResult` values in `InMemoryWorkflowRunRepository`, returns a `run_id` to the API caller, and reports runtime mode metadata for decision responses.
+* `ExperimentService` runs the same orchestrator with optional `AgentPromptOverrides`, stores the run in the in-memory workflow repository, and persists the public experiment payload in `JsonFileExperimentRepository`.
 * Real data providers, durable repositories, and broker adapters should be added behind these explicit interfaces.
 * The first broker adapter should target `Korea Investment & Securities Open API`.
 * The first live execution scope should cover overseas stock order submission, order status checks, and execution result collection.
@@ -77,9 +95,9 @@ flowchart LR
 
 ### Data Provider Adapter
 
-* Status: `Stub implemented`
-* Runtime source: `StubMarketDataProvider`
-* Live provider contract: `TBD`
+* Status: `Stub and Yahoo Finance implemented`
+* Runtime source: `StubMarketDataProvider` or `YahooFinanceMarketDataProvider`
+* Live provider contract: `MarketDataProvider.get_market_data`
 
 ### Broker Adapter
 
@@ -90,5 +108,20 @@ flowchart LR
 
 ### Persistence Layer
 
-* Status: `In-memory only`
-* Durable storage contract: `TBD`
+* Status: `In-memory workflow runs plus local JSON experiment history`
+* Workflow run repository: `InMemoryWorkflowRunRepository`
+* Experiment history repository: `JsonFileExperimentRepository` storing `data/experiments.json` by default
+* Durable multi-user storage contract: `TBD`
+
+### Agent LLM Prompt Layer
+
+* Status: `Shared template implemented with experiment prompt overrides`
+* Runtime source: `OpenAIResponsesClient` or `NoopAgentLLMClient`
+* Per-agent prompt contract: Web experiment overrides are appended as run-specific guidance and cannot replace the schema-preserving base instruction.
+
+### Policy Guardrail
+
+* Status: `Mandate boundary implemented`
+* Runtime source: `PolicyGuardrail`
+* Current hard checks: `allowed_symbols`, `excluded_symbols`
+* Future policy checks: `TBD`
