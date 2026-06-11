@@ -10,6 +10,9 @@
 * [architecture.md](architecture.md)
   에이전트 흐름과 브로커 연동 경계, 선택적 LLM 템플릿 계층을 설명한다.
   파이프라인 단계, 오케스트레이션 방식, 정책/LLM/adapters 경계가 바뀌면 갱신한다.
+* [repository-map.md](repository-map.md)
+  현재 저장소의 주요 디렉터리와 책임 경계를 Mermaid 차트로 요약한다.
+  주요 패키지 구조나 문서화 대상 디렉터리 책임이 바뀌면 갱신한다.
 * [api-contracts.md](api-contracts.md)
   현재 FastAPI 공개 엔드포인트의 요청/응답 계약, 상태 코드, 운영상 의미를 한 곳에 모아 둔다.
   `agent_pay_for_urself/api/routes/`, `agent_pay_for_urself/api/models/`, `agent_pay_for_urself/api/services/`의 공개 계약이 바뀌면 갱신한다.

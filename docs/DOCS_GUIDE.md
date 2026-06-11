@@ -15,6 +15,7 @@
 * `TESTS_GUIDE.md`
 * `project-overview.md`
 * `architecture.md`
+* `repository-map.md`
 * `development-plan.md`
 * `agent-structure.md`
 * `domain-rules.md`
