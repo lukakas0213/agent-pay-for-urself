@@ -8,8 +8,16 @@ from dataclasses import dataclass
 
 from agent_pay_for_urself.llm.base import AgentLLMClient, AgentLLMRequest, JSONObject
 
-DEFAULT_OPENAI_MODEL = "gpt-5.1"
+DEFAULT_OPENAI_MODEL = "gpt-5.5"
 DEFAULT_TIMEOUT_SECONDS = 30.0
+AGENT_MODEL_ENV_VARS = {
+    "data_collection": "OPENAI_DATA_COLLECTION_MODEL",
+    "data_analysis": "OPENAI_DATA_ANALYSIS_MODEL",
+    "risk_management": "OPENAI_RISK_MANAGEMENT_MODEL",
+    "buy_sell": "OPENAI_BUY_SELL_MODEL",
+    "order_execution": "OPENAI_ORDER_EXECUTION_MODEL",
+    "log_evaluation": "OPENAI_LOG_EVALUATION_MODEL",
+}
 
 
 @dataclass(frozen=True)
@@ -17,8 +25,9 @@ class OpenAIResponsesConfig:
     """Minimal runtime configuration for the OpenAI Responses API wrapper."""
 
     api_key: str
-    model: str = DEFAULT_OPENAI_MODEL
+    default_model: str = DEFAULT_OPENAI_MODEL
     timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS
+    agent_models: dict[str, str] | None = None
 
     @classmethod
     def from_env(cls) -> OpenAIResponsesConfig | None:
@@ -28,10 +37,28 @@ class OpenAIResponsesConfig:
         if not api_key:
             return None
 
-        model = os.getenv("OPENAI_MODEL", DEFAULT_OPENAI_MODEL).strip() or DEFAULT_OPENAI_MODEL
+        default_model = (
+            os.getenv("OPENAI_MODEL", DEFAULT_OPENAI_MODEL).strip() or DEFAULT_OPENAI_MODEL
+        )
         timeout_raw = os.getenv("OPENAI_TIMEOUT_SECONDS", str(DEFAULT_TIMEOUT_SECONDS)).strip()
         timeout_seconds = float(timeout_raw)
-        return cls(api_key=api_key, model=model, timeout_seconds=timeout_seconds)
+        agent_models = {
+            agent_name: os.getenv(env_var, "").strip() or default_model
+            for agent_name, env_var in AGENT_MODEL_ENV_VARS.items()
+        }
+        return cls(
+            api_key=api_key,
+            default_model=default_model,
+            timeout_seconds=timeout_seconds,
+            agent_models=agent_models,
+        )
+
+    def model_for_agent(self, agent_name: str) -> str:
+        """Return the configured model for one agent, or the default fallback model."""
+
+        if self.agent_models is None:
+            return self.default_model
+        return self.agent_models.get(agent_name, self.default_model)
 
 
 class OpenAIResponsesClient(AgentLLMClient):
@@ -50,15 +77,23 @@ class OpenAIResponsesClient(AgentLLMClient):
 
     @property
     def model_name(self) -> str:
-        """Return the configured model name for runtime summaries."""
+        """Return the configured default model name for runtime summaries."""
 
-        return self._config.model
+        return self._config.default_model
+
+    @property
+    def agent_model_names(self) -> dict[str, str] | None:
+        """Return the per-agent model routing table, if configured."""
+
+        if self._config.agent_models is None:
+            return None
+        return dict(self._config.agent_models)
 
     def complete(self, request: AgentLLMRequest) -> JSONObject:
         """Call the Responses API and parse the returned JSON object."""
 
         response = self._client.responses.create(
-            model=self._config.model,
+            model=self._config.model_for_agent(request.agent_name),
             instructions=request.system_instruction,
             input=self._build_input(request),
         )

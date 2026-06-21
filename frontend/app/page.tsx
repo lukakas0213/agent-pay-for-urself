@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { buildApiUrl } from "../lib/api";
 
 type TradeAction = "BUY" | "SELL" | "HOLD";
 type RiskTolerance = "low" | "medium" | "high";
@@ -307,7 +308,7 @@ export default function Home() {
   async function loadExperimentHistory() {
     setIsHistoryLoading(true);
     try {
-      const response = await fetch("/api/experiments");
+      const response = await fetch(buildApiUrl("/api/experiments"));
       if (!response.ok) {
         throw new Error(`실험 목록 요청 실패: ${response.status}`);
       }
@@ -343,7 +344,7 @@ export default function Home() {
   async function handleLoadExperiment(experimentId: string) {
     setError(null);
     try {
-      const response = await fetch(`/api/experiments/${experimentId}`);
+      const response = await fetch(buildApiUrl(`/api/experiments/${experimentId}`));
       if (!response.ok) {
         throw new Error(`실험 상세 요청 실패: ${response.status}`);
       }
@@ -371,7 +372,7 @@ export default function Home() {
 
     try {
       const decisionRequest = buildDecisionRequest();
-      const response = await fetch(isExperimentMode ? "/api/experiments" : "/api/decisions", {
+      const response = await fetch(buildApiUrl(isExperimentMode ? "/api/experiments" : "/api/decisions"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -436,7 +437,7 @@ export default function Home() {
     setInteractionMessages((messages) => [...messages, { role: "user", content: message }]);
 
     try {
-      const response = await fetch("/api/console/interactions", {
+      const response = await fetch(buildApiUrl("/api/console/interactions"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

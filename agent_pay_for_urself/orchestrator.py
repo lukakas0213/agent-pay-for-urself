@@ -60,6 +60,7 @@ class MainAgent:
         )
         order_plans = self.order_execution_agent.plan_orders(
             trade_decisions,
+            market_data=market_data,
             prompt_override=prompt_overrides.order_execution,
         )
         trade_decisions, order_plans, mandate_violations = self.policy_guardrail.apply(

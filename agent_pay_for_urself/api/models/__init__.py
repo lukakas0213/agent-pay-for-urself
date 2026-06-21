@@ -26,6 +26,14 @@ from agent_pay_for_urself.api.models.interactions import (
     AgentInteractionRequest,
     AgentInteractionResponse,
 )
+from agent_pay_for_urself.api.models.orders import (
+    DirectOrderSubmitRequest,
+    DirectOrderSubmitResponse,
+    LiveOrderSkippedItem,
+    LiveOrderSubmissionItem,
+    LiveOrderSubmitRequest,
+    LiveOrderSubmitResponse,
+)
 
 __all__ = [
     "RuntimeSummaryItem",
@@ -35,6 +43,12 @@ __all__ = [
     "AgentPromptOverridesRequest",
     "AgentInteractionRequest",
     "AgentInteractionResponse",
+    "DirectOrderSubmitRequest",
+    "DirectOrderSubmitResponse",
+    "LiveOrderSkippedItem",
+    "LiveOrderSubmissionItem",
+    "LiveOrderSubmitRequest",
+    "LiveOrderSubmitResponse",
     "AnalysisSignalItem",
     "DecisionItem",
     "DecisionRequest",

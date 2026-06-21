@@ -93,6 +93,7 @@ class ExperimentService:
             data_mode=getattr(self._market_data_provider, "mode_name", "configured"),
             llm_mode="model" if self._llm_client.enabled else "fallback",
             model_name=getattr(self._llm_client, "model_name", None),
+            agent_models=getattr(self._llm_client, "agent_model_names", None),
             live_order_enabled=self._live_order_enabled,
         )
 

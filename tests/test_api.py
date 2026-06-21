@@ -18,6 +18,9 @@ def test_create_decision_returns_decisions_order_plans_and_run_id() -> None:
     assert payload["symbols"] == ["aapl", "MSFT"]
     assert [decision["symbol"] for decision in payload["decisions"]] == ["AAPL", "MSFT"]
     assert [order["symbol"] for order in payload["orders"]] == ["AAPL", "MSFT"]
+    assert {"broker_exchange_code", "limit_price", "should_submit", "reason"} <= payload["orders"][
+        0
+    ].keys()
 
 
 def test_decisions_openapi_documents_usage_summary() -> None:

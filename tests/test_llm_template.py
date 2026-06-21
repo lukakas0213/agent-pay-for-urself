@@ -8,6 +8,7 @@ from agent_pay_for_urself.agents import (
     RiskManagementAgent,
 )
 from agent_pay_for_urself.llm.base import AgentLLMClient, AgentLLMRequest
+from agent_pay_for_urself.llm.openai_client import AGENT_MODEL_ENV_VARS, OpenAIResponsesConfig
 from agent_pay_for_urself.orchestrator import MainAgent
 from agent_pay_for_urself.schemas import AgentPromptOverrides, InvestmentRequest
 
@@ -169,3 +170,25 @@ def test_data_analysis_agent_falls_back_when_llm_payload_is_invalid() -> None:
 
     assert result[0].symbol == "AAPL"
     assert result[0].rationale
+
+
+def test_openai_responses_config_uses_agent_specific_model_env_vars(monkeypatch) -> None:
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_MODEL", raising=False)
+    monkeypatch.delenv("OPENAI_TIMEOUT_SECONDS", raising=False)
+    for env_var in AGENT_MODEL_ENV_VARS.values():
+        monkeypatch.delenv(env_var, raising=False)
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_MODEL", "gpt-5.5")
+    monkeypatch.setenv("OPENAI_DATA_COLLECTION_MODEL", "gpt-5.4-mini")
+    monkeypatch.setenv("OPENAI_ORDER_EXECUTION_MODEL", "gpt-5.4-mini")
+
+    config = OpenAIResponsesConfig.from_env()
+
+    assert config is not None
+    assert config.default_model == "gpt-5.5"
+    assert config.model_for_agent("data_collection") == "gpt-5.4-mini"
+    assert config.model_for_agent("data_analysis") == "gpt-5.5"
+    assert config.model_for_agent("order_execution") == "gpt-5.4-mini"
+    assert config.agent_models is not None
+    assert config.agent_models["risk_management"] == "gpt-5.5"

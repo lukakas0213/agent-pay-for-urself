@@ -12,6 +12,8 @@
 * `GET /health`
 * `GET /market-data/{symbol}`
 * `POST /decisions`
+* `POST /orders/submit`
+* `POST /orders/submissions`
 * `POST /console/interactions`
 * `POST /agent/interactions` (`/console/interactions`의 deprecated alias)
 * `POST /experiments`
@@ -40,9 +42,11 @@
 
 * 요청과 응답 본문은 JSON 기준이다.
 * 종목 심볼은 내부 워크플로우에서 대문자로 정규화된다.
-* 현재 API는 실제 브로커 주문을 제출하지 않는다. `orders`는 주문 계획만 반환한다.
+* `POST /decisions`는 주문 계획만 반환한다. 실제 브로커 주문 제출은 `POST /orders/submit` 또는 `POST /orders/submissions`에서만 발생한다.
 * `runtime.llm_mode`는 `model` 또는 `fallback`이다.
+* `runtime.agent_models`는 설정된 경우 에이전트 이름 -> 모델명 매핑을 담는다.
 * `runtime.data_mode`는 현재 `stub` 또는 `yahoo`가 될 수 있다.
+* `runtime.live_order_enabled`는 현재 조립된 브로커 어댑터가 제출 가능한 계좌 설정까지 갖췄는지 나타낸다.
 
 ## GET /health
 
@@ -69,6 +73,7 @@
 
 * `symbol: str`
 * `latest_price: float`
+* `broker_exchange_code: str | null`
 * `news_headlines: list[str]`
 * `financial_metrics: dict[str, float]`
 
@@ -77,6 +82,7 @@
 {
   "symbol": "AAPL",
   "latest_price": 301.54,
+  "broker_exchange_code": "NASD",
   "news_headlines": ["..."],
   "financial_metrics": {"pe_ratio": 36.5}
 }
@@ -140,6 +146,7 @@
 * `data_mode: str`
 * `llm_mode: str`
 * `model_name: str | null`
+* `agent_models: dict[str, str] | null`
 * `live_order_enabled: bool`
 
 `market_data` 항목 필드:
@@ -178,6 +185,8 @@
 * `symbol: str`
 * `action: "BUY" | "SELL" | "HOLD"`
 * `quantity: int`
+* `broker_exchange_code: str | null`
+* `limit_price: float | null`
 * `should_submit: bool`
 * `reason: str`
 
@@ -202,7 +211,15 @@
   "runtime": {
     "data_mode": "yahoo",
     "llm_mode": "model",
-    "model_name": "gpt-5.1",
+    "model_name": "gpt-5.5",
+    "agent_models": {
+      "data_collection": "gpt-5.4-mini",
+      "data_analysis": "gpt-5.5",
+      "risk_management": "gpt-5.5",
+      "buy_sell": "gpt-5.5",
+      "order_execution": "gpt-5.4-mini",
+      "log_evaluation": "gpt-5.4-mini"
+    },
     "live_order_enabled": false
   },
   "mandate": {
@@ -220,6 +237,7 @@
     {
       "symbol": "AAPL",
       "latest_price": 301.54,
+      "broker_exchange_code": "NASD",
       "news_headlines": ["..."],
       "financial_metrics": {"pe_ratio": 36.5}
     }
@@ -256,6 +274,8 @@
       "symbol": "AAPL",
       "action": "HOLD",
       "quantity": 0,
+      "broker_exchange_code": null,
+      "limit_price": null,
       "should_submit": false,
       "reason": "no executable order"
     }
@@ -273,6 +293,135 @@
 오류 상태 코드:
 
 * `422`: 잘못된 요청 형식. 예: 공백 심볼, 범위를 벗어난 `max_position_weight`
+
+## POST /orders/submit
+
+목적:
+저장된 workflow run이 없어도 단일 주문을 직접 브로커 또는 모의 브로커로 제출한다. 이 엔드포인트는 주문 에이전트가 직접 호출할 수 있고, 개발자는 수동 테스트용으로 같은 경로를 사용할 수 있다.
+
+요청 모델 `DirectOrderSubmitRequest`:
+
+* `symbol: str`
+* `action: "BUY" | "SELL"`
+* `quantity: int`
+* `broker_exchange_code: str | null`
+* `limit_price: float | null`
+* `confirm_live_order: bool`
+  반드시 `true`여야 제출 수행
+
+최소 요청 예시:
+```json
+{
+  "symbol": "AAPL",
+  "action": "BUY",
+  "quantity": 1,
+  "confirm_live_order": true
+}
+```
+
+응답 모델 `DirectOrderSubmitResponse`:
+
+* `live_order_enabled: bool`
+* `submission: LiveOrderSubmissionItem`
+
+`submission` 항목 필드:
+
+* `symbol: str`
+* `action: "BUY" | "SELL" | "HOLD"`
+* `quantity: int`
+* `broker_exchange_code: str | null`
+* `limit_price: float | null`
+* `accepted: bool`
+* `broker_order_id: str | null`
+* `message: str`
+
+오류 상태 코드:
+
+* `400`: 제출 확인 플래그가 없거나 요청 본문이 잘못됨
+* `503`: 현재 런타임에 제출 가능한 브로커 어댑터가 없음
+
+## POST /orders/submissions
+
+목적:
+저장된 workflow run의 실행 가능한 주문 계획만 골라 현재 구성된 브로커 어댑터로 실제 제출한다. 이 엔드포인트는 실제 또는 모의 브로커 주문을 발생시킬 수 있다.
+
+요청 모델 `LiveOrderSubmitRequest`:
+
+* `run_id: str`
+* `symbols: list[str]`
+  선택값, 비어 있으면 저장된 모든 order plan을 대상으로 삼음
+* `confirm_live_order: bool`
+  반드시 `true`여야 제출 수행
+
+최소 요청 예시:
+```json
+{
+  "run_id": "run_123",
+  "confirm_live_order": true
+}
+```
+
+응답 모델 `LiveOrderSubmitResponse`:
+
+* `run_id: str`
+* `requested_symbols: list[str]`
+* `live_order_enabled: bool`
+* `mandate_requires_approval: bool`
+* `accepted_order_count: int`
+* `rejected_order_count: int`
+* `skipped_order_count: int`
+* `submissions: list[LiveOrderSubmissionItem]`
+* `skipped_orders: list[LiveOrderSkippedItem]`
+
+`submissions` 항목 필드:
+
+* `symbol: str`
+* `action: "BUY" | "SELL" | "HOLD"`
+* `quantity: int`
+* `broker_exchange_code: str | null`
+* `limit_price: float | null`
+* `accepted: bool`
+* `broker_order_id: str | null`
+* `message: str`
+
+`skipped_orders` 항목 필드:
+
+* `symbol: str`
+* `action: "BUY" | "SELL" | "HOLD" | null`
+* `quantity: int | null`
+* `reason: str`
+
+응답 예시:
+```json
+{
+  "run_id": "run_123",
+  "requested_symbols": ["AAPL"],
+  "live_order_enabled": true,
+  "mandate_requires_approval": true,
+  "accepted_order_count": 1,
+  "rejected_order_count": 0,
+  "skipped_order_count": 0,
+  "submissions": [
+    {
+      "symbol": "AAPL",
+      "action": "BUY",
+      "quantity": 1,
+      "broker_exchange_code": "NASD",
+      "limit_price": 201.25,
+      "accepted": true,
+      "broker_order_id": "A0001",
+      "message": "submitted"
+    }
+  ],
+  "skipped_orders": []
+}
+```
+
+오류 상태 코드:
+
+* `400`: 제출 확인 플래그가 없거나 요청 본문이 잘못됨
+* `404`: 저장된 `run_id`를 찾지 못함
+* `503`: 현재 런타임에 제출 가능한 브로커 어댑터가 없음
 
 ## POST /console/interactions
 

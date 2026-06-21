@@ -15,6 +15,7 @@ class RecordingMarketDataProvider:
         return MarketData(
             symbol=symbol,
             latest_price=123.45,
+            broker_exchange_code="NASD",
             news_headlines=(f"{symbol} provider headline",),
             financial_metrics={"pe_ratio": 18.0},
         )
@@ -37,6 +38,7 @@ def test_market_data_endpoint_returns_one_symbol_payload() -> None:
     assert response.json() == {
         "symbol": "AAPL",
         "latest_price": 123.45,
+        "broker_exchange_code": "NASD",
         "news_headlines": ["AAPL provider headline"],
         "financial_metrics": {"pe_ratio": 18.0},
     }

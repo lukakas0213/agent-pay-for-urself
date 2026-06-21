@@ -63,3 +63,4 @@
 - `docs/domain-rules.md`: 투자 판단 원칙, 금지 사항, 도메인 제약.
 - `docs/DOCS_GUIDE.md`: 문서 구조와 갱신 규칙.
 - `docs/TESTS_GUIDE.md`: 테스트 작성, 수정, 리뷰 기준.
+- 'docs/korea-investment-api.md: 한국투자 open api 사용 설명서. 

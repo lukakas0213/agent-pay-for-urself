@@ -48,10 +48,10 @@
 
 * 관련 코드 경로: `agent_pay_for_urself/llm/`
 * 기본 클라이언트: `NoopAgentLLMClient`
-* OpenAI 사용 시: `OpenAIResponsesClient`
+* OpenAI 사용 시: `OpenAIResponsesClient` with per-agent model routing
 * 동작 방식: 에이전트가 fallback 결과를 먼저 만들고, LLM 응답이 유효한 구조를 반환하면 그 값을 사용하며 실패 시 fallback 결과로 되돌아간다.
 
-즉 현재 저장소에서 LLM은 에이전트 바깥의 공통 호출 인프라이고, 각 에이전트는 여전히 자신의 입력/출력 스키마와 비즈니스 단계 책임을 가진다. 실험실의 에이전트별 prompt override는 기본 system instruction 뒤에 추가 지시로 붙으며, JSON 출력 스키마와 투자 안전 제약보다 우선하지 않는다.
+즉 현재 저장소에서 LLM은 에이전트 바깥의 공통 호출 인프라이고, 각 에이전트는 여전히 자신의 입력/출력 스키마와 비즈니스 단계 책임을 가진다. 실험실의 에이전트별 prompt override는 기본 system instruction 뒤에 추가 지시로 붙으며, JSON 출력 스키마와 투자 안전 제약보다 우선하지 않는다. 에이전트별 모델은 환경 변수로 분리해서 조정한다.
 
 ## 현재 구현 에이전트
 
@@ -95,8 +95,9 @@
 
 * 주문 계획 생성
 * 선택적으로 공통 LLM 템플릿 계층을 거쳐 `OrderPlan`을 생성할 수 있다.
+* 시장데이터에 거래소 정보가 있으면 `broker_exchange_code`와 `limit_price`를 주문 계획에 포함한다.
 * 실제 브로커 제출은 `BrokerAdapter` 경계 뒤로 분리한다.
-* 현재 기본 adapter는 `NoopBrokerAdapter`이며 실주문은 전송하지 않는다.
+* 현재 기본 adapter는 `NoopBrokerAdapter`이며, `BROKER_ADAPTER=kis_mock`일 때 한국투자증권 모의투자 adapter를 조립할 수 있다.
 
 ### 로그/평가 에이전트
 

@@ -3,7 +3,12 @@
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 from agent_pay_for_urself.adapters import (
+    BrokerAdapter,
+    KisMockBrokerAdapter,
+    KisMockBrokerConfig,
     MarketDataProvider,
     NoopBrokerAdapter,
     StubMarketDataProvider,
@@ -21,12 +26,15 @@ from agent_pay_for_urself.api.services.console_assistant import ConsoleAssistant
 from agent_pay_for_urself.api.services.decision_workflow import DecisionWorkflowService
 from agent_pay_for_urself.api.services.experiments import ExperimentService
 from agent_pay_for_urself.api.services.market_data import MarketDataService
+from agent_pay_for_urself.api.services.order_submission import OrderSubmissionService
 from agent_pay_for_urself.llm import build_default_agent_llm_client
 from agent_pay_for_urself.orchestrator import MainAgent
 from agent_pay_for_urself.repositories import (
     InMemoryWorkflowRunRepository,
     JsonFileExperimentRepository,
 )
+
+load_dotenv()
 
 
 def _build_market_data_provider() -> MarketDataProvider:
@@ -40,8 +48,42 @@ def _build_market_data_provider() -> MarketDataProvider:
     raise RuntimeError("Unsupported MARKET_DATA_PROVIDER. Expected one of: stub, yahoo, yfinance.")
 
 
+def _build_broker_adapter() -> BrokerAdapter:
+    """Resolve the configured broker adapter for API runtime composition."""
+
+    adapter_name = os.getenv("BROKER_ADAPTER", "noop").strip().lower()
+    if adapter_name in {"", "noop"}:
+        return NoopBrokerAdapter()
+    if adapter_name in {"kis_mock", "kis-paper", "koreainvestment_mock"}:
+        return KisMockBrokerAdapter(
+            KisMockBrokerConfig(
+                app_key=os.getenv("KIS_MOCK_APP_KEY", "").strip(),
+                app_secret=os.getenv("KIS_MOCK_APP_SECRET", "").strip(),
+                account_number=os.getenv("KIS_MOCK_ACCOUNT_NUMBER", "").strip(),
+                account_product_code=(
+                    os.getenv("KIS_MOCK_ACCOUNT_PRODUCT_CODE", "01").strip() or "01"
+                ),
+                base_url=os.getenv("KIS_MOCK_BASE_URL", "").strip() or KisMockBrokerConfig.base_url,
+                contact_phone=os.getenv("KIS_MOCK_CONTACT_PHONE", "").strip(),
+                management_order_number=os.getenv("KIS_MOCK_MANAGEMENT_ORDER_NUMBER", "").strip(),
+                order_server_division_code=(
+                    os.getenv("KIS_MOCK_ORDER_SERVER_DIVISION_CODE", "0").strip() or "0"
+                ),
+                order_division_code=(
+                    os.getenv("KIS_MOCK_ORDER_DIVISION_CODE", "00").strip() or "00"
+                ),
+                timeout_seconds=float(
+                    os.getenv(
+                        "KIS_MOCK_TIMEOUT_SECONDS", str(KisMockBrokerConfig.timeout_seconds)
+                    ).strip()
+                ),
+            )
+        )
+    raise RuntimeError("Unsupported BROKER_ADAPTER. Expected one of: noop, kis_mock.")
+
+
 _market_data_provider = _build_market_data_provider()
-_broker_adapter = NoopBrokerAdapter()
+_broker_adapter = _build_broker_adapter()
 _workflow_run_repository = InMemoryWorkflowRunRepository()
 _experiment_repository = JsonFileExperimentRepository(
     Path(os.getenv("EXPERIMENT_STORE_PATH", "data/experiments.json"))
@@ -67,6 +109,10 @@ _decision_workflow_service = DecisionWorkflowService(
     market_data_provider=_market_data_provider,
     llm_client=_agent_llm_client,
 )
+_order_submission_service = OrderSubmissionService(
+    main_agent=_main_agent,
+    workflow_run_repository=_workflow_run_repository,
+)
 _market_data_service = MarketDataService(market_data_provider=_market_data_provider)
 _experiment_service = ExperimentService(
     main_agent=_main_agent,
@@ -89,6 +135,12 @@ def get_market_data_service() -> MarketDataService:
     """Return the API-scoped market data lookup service."""
 
     return _market_data_service
+
+
+def get_order_submission_service() -> OrderSubmissionService:
+    """Return the API-scoped live order submission service."""
+
+    return _order_submission_service
 
 
 def get_experiment_service() -> ExperimentService:

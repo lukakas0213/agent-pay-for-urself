@@ -132,6 +132,10 @@ class MarketDataItem(BaseModel):
     latest_price: float = Field(
         description="Latest price from the configured market data provider."
     )
+    broker_exchange_code: str | None = Field(
+        default=None,
+        description="Optional Korea Investment overseas exchange code derived from market data.",
+    )
     news_headlines: list[str] = Field(description="News headlines collected for the symbol.")
     financial_metrics: dict[str, float] = Field(
         description="Financial metrics collected for the symbol."
@@ -174,6 +178,16 @@ class OrderItem(BaseModel):
     symbol: str = Field(description="Uppercase stock symbol for the planned order.")
     action: TradeAction = Field(description="Decision action carried into order planning.")
     quantity: int = Field(description="Planned order quantity. Zero means no executable order.")
+    broker_exchange_code: str | None = Field(
+        default=None,
+        description="Optional Korea Investment overseas exchange code for a future broker order.",
+    )
+    limit_price: float | None = Field(
+        default=None,
+        description=(
+            "Optional limit price derived from current market data for a future broker order."
+        ),
+    )
     should_submit: bool = Field(
         description=(
             "Whether this order is ready for a future broker adapter. The current API only "
@@ -200,7 +214,11 @@ class RuntimeSummaryItem(BaseModel):
         description="Whether the workflow used a model or deterministic fallback."
     )
     model_name: str | None = Field(
-        description="Configured model name when a live LLM client is enabled."
+        description="Configured default model name when a live LLM client is enabled."
+    )
+    agent_models: dict[str, str] | None = Field(
+        default=None,
+        description="Resolved per-agent OpenAI model routing when configured.",
     )
     live_order_enabled: bool = Field(
         description="Whether the current runtime may submit live orders."
@@ -220,6 +238,7 @@ class DecisionResponse(BaseModel):
                         "data_mode": "stub",
                         "llm_mode": "fallback",
                         "model_name": None,
+                        "agent_models": None,
                         "live_order_enabled": False,
                     },
                     "mandate": {
@@ -237,6 +256,7 @@ class DecisionResponse(BaseModel):
                         {
                             "symbol": "AAPL",
                             "latest_price": 100.0,
+                            "broker_exchange_code": None,
                             "news_headlines": ["AAPL market update"],
                             "financial_metrics": {"pe_ratio": 20.0},
                         }

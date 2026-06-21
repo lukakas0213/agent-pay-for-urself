@@ -21,6 +21,7 @@ def to_market_data_item(data: MarketData) -> MarketDataItem:
     return MarketDataItem(
         symbol=data.symbol,
         latest_price=data.latest_price,
+        broker_exchange_code=data.broker_exchange_code,
         news_headlines=list(data.news_headlines),
         financial_metrics=data.financial_metrics,
     )
@@ -84,6 +85,8 @@ def to_decision_response(
                 symbol=order.symbol,
                 action=order.action,
                 quantity=order.quantity,
+                broker_exchange_code=order.broker_exchange_code,
+                limit_price=order.limit_price,
                 should_submit=order.should_submit,
                 reason=order.reason,
             )

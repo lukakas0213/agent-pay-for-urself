@@ -11,3 +11,5 @@ dist/
 build/
 data/*.json
 frontend/*.tsbuildinfo
+frontend/out/
+한국투자증권_오픈API.xlsx

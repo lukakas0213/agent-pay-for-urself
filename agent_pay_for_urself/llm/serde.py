@@ -52,6 +52,7 @@ def _parse_market_data_item(value: Any) -> MarketData:
     return MarketData(
         symbol=str(item["symbol"]),
         latest_price=float(item["latest_price"]),
+        broker_exchange_code=_optional_string(item.get("broker_exchange_code")),
         news_headlines=tuple(
             str(headline) for headline in _require_sequence(item["news_headlines"])
         ),
@@ -106,6 +107,8 @@ def _parse_order_plan(value: Any) -> OrderPlan:
         symbol=str(item["symbol"]),
         action=action,
         quantity=int(item["quantity"]),
+        broker_exchange_code=_optional_string(item.get("broker_exchange_code")),
+        limit_price=_optional_float(item.get("limit_price")),
         should_submit=bool(item["should_submit"]),
         reason=str(item["reason"]),
     )
@@ -115,6 +118,18 @@ def _require_mapping(value: Any) -> Mapping[str, Any]:
     if not isinstance(value, Mapping):
         raise TypeError(f"Expected mapping payload, got {type(value)!r}")
     return value
+
+
+def _optional_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    return float(value)
+
+
+def _optional_string(value: Any) -> str | None:
+    if value is None:
+        return None
+    return str(value)
 
 
 def _require_sequence(value: Any) -> Sequence[Any]:

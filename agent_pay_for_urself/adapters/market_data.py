@@ -18,6 +18,25 @@ DEFAULT_PE_RATIO = 20.0
 DEFAULT_YAHOO_NEWS_COUNT = 3
 DEFAULT_YAHOO_HISTORY_PERIOD = "5d"
 
+YAHOO_TO_KIS_ORDER_EXCHANGE_CODE = {
+    "nasdaq": "NASD",
+    "nasdaqcm": "NASD",
+    "nasdaqgm": "NASD",
+    "nasdaqgs": "NASD",
+    "nms": "NASD",
+    "nas": "NASD",
+    "nyse": "NYSE",
+    "newyorkstockexchange": "NYSE",
+    "nyq": "NYSE",
+    "nys": "NYSE",
+    "nyseamerican": "AMEX",
+    "nysemkt": "AMEX",
+    "amex": "AMEX",
+    "americanstockexchange": "AMEX",
+    "ase": "AMEX",
+    "ams": "AMEX",
+}
+
 
 class MarketDataProvider(ABC):
     """Provides normalized market data to the data collection agent."""
@@ -38,6 +57,7 @@ class StubMarketDataProvider(MarketDataProvider):
         return MarketData(
             symbol=symbol,
             latest_price=DEFAULT_PRICE,
+            broker_exchange_code=None,
             news_headlines=(f"{symbol} market update",),
             financial_metrics={"pe_ratio": DEFAULT_PE_RATIO},
         )
@@ -65,9 +85,11 @@ class YahooFinanceMarketDataProvider(MarketDataProvider):
         latest_price = self._extract_latest_price(ticker, symbol)
         news_headlines = self._extract_news_headlines(ticker)
         financial_metrics = self._extract_financial_metrics(ticker)
+        broker_exchange_code = self._extract_broker_exchange_code(ticker)
         return MarketData(
             symbol=symbol,
             latest_price=latest_price,
+            broker_exchange_code=broker_exchange_code,
             news_headlines=news_headlines,
             financial_metrics=financial_metrics,
         )
@@ -125,6 +147,20 @@ class YahooFinanceMarketDataProvider(MarketDataProvider):
             return {}
         return {"pe_ratio": pe_ratio}
 
+    def _extract_broker_exchange_code(self, ticker: object) -> str | None:
+        info = getattr(ticker, "info", {}) or {}
+        if not isinstance(info, Mapping):
+            return None
+
+        for raw_value in (info.get("exchange"), info.get("fullExchangeName")):
+            normalized = self._normalize_exchange_name(raw_value)
+            if normalized is None:
+                continue
+            broker_exchange_code = YAHOO_TO_KIS_ORDER_EXCHANGE_CODE.get(normalized)
+            if broker_exchange_code is not None:
+                return broker_exchange_code
+        return None
+
     def _extract_news_title(self, item: Any) -> str | None:
         if not isinstance(item, Mapping):
             return None
@@ -149,3 +185,9 @@ class YahooFinanceMarketDataProvider(MarketDataProvider):
                 return None
             return numeric_value
         return None
+
+    def _normalize_exchange_name(self, value: Any) -> str | None:
+        if not isinstance(value, str):
+            return None
+        collapsed = "".join(character for character in value.lower() if character.isalnum())
+        return collapsed or None

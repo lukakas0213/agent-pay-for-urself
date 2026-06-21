@@ -59,6 +59,7 @@ class MarketData:
 
     symbol: str
     latest_price: float
+    broker_exchange_code: str | None = None
     news_headlines: tuple[str, ...] = field(default_factory=tuple)
     financial_metrics: dict[str, float] = field(default_factory=dict)
 
@@ -106,8 +107,10 @@ class OrderPlan:
     symbol: str
     action: TradeAction
     quantity: int
-    should_submit: bool
-    reason: str
+    broker_exchange_code: str | None = None
+    limit_price: float | None = None
+    should_submit: bool = False
+    reason: str = ""
 
 
 @dataclass(frozen=True)

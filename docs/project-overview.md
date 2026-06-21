@@ -16,7 +16,7 @@
 * 데이터 수집 -> 분석 -> 리스크 검증 -> 매수/매도 판단 -> 주문 계획 -> 평가 요약 흐름 제공
 * 설명 가능한 투자 판단 결과와 주문 계획 스키마 제공
 * Yahoo Finance(`yfinance`)를 첫 실데이터 provider 옵션으로 제공
-* 한국투자증권 Open API를 첫 브로커 어댑터 대상으로 두는 방향 확정
+* 한국투자증권 Open API를 첫 브로커 어댑터 대상으로 두고, 모의투자 REST 어댑터를 현재 구현에 포함
 * OpenAI Responses API를 각 에이전트에 연결할 수 있는 선택적 공통 LLM 템플릿 계층 제공
 * 사용자 요구사항을 `InvestmentMandate`로 구조화하고 메인 에이전트가 정책 가드레일로 집행하는 기본 경계 제공
 
@@ -42,7 +42,7 @@
 
 ## 현재 구현 컴포넌트
 
-* Frontend (Next.js)
+* Frontend (Next.js, Cloudflare Pages static export compatible)
 * Backend API (FastAPI)
 * Main Agent / Sequential Orchestrator
 * Data Collection Agent
@@ -98,7 +98,7 @@ tests/                 # 백엔드 워크플로우 테스트
 
 시장 데이터는 기본적으로 deterministic stub provider를 사용하고, `MARKET_DATA_PROVIDER=yahoo`를 설정하면 `yfinance` 기반 Yahoo Finance provider를 통해 실데이터를 수집할 수 있다. 실제 연동은 명시적인 adapter 또는 repository 계층을 통해 추가한다.
 
-선택적으로 `OPENAI_API_KEY`를 설정하면 공통 LLM 템플릿 계층이 OpenAI Responses API를 사용해 각 에이전트의 구조화 출력을 생성할 수 있다. 키가 없거나 응답이 유효하지 않으면 현재 deterministic fallback 로직을 사용한다.
+선택적으로 `OPENAI_API_KEY`를 설정하면 공통 LLM 템플릿 계층이 OpenAI Responses API를 사용해 각 에이전트의 구조화 출력을 생성할 수 있다. 기본 모델은 `gpt-5.5`이고, `OPENAI_DATA_COLLECTION_MODEL` 같은 에이전트별 환경 변수로 개별 모델을 덮어쓸 수 있다. 키가 없거나 응답이 유효하지 않으면 현재 deterministic fallback 로직을 사용한다.
 
 `InvestmentMandate`는 사용자의 요구사항과 제약을 담는 실행 경계이며, `PolicyGuardrail`은 현재 허용/제외 심볼 위반을 차단한다.
 
@@ -114,9 +114,9 @@ tests/                 # 백엔드 워크플로우 테스트
 
 ### 브로커 주문 전송
 
-* 상태: `Planned`
+* 상태: `KIS mock adapter implemented, live HTTP endpoint not exposed`
 * 첫 대상: `한국투자증권 Open API`
-* 확정된 상세 계약: `TBD`
+* 확정된 입력/출력 계약: `BrokerAdapter.submit_order`, `BrokerAdapter.get_order_status`
 
 ### 영속 저장
 
@@ -125,6 +125,6 @@ tests/                 # 백엔드 워크플로우 테스트
 
 ### 에이전트별 프롬프트 상세화
 
-* 상태: `TBD`
-* 현재 구현: 공통 LLM 템플릿만 존재
-* 확정된 프롬프트 계약: 없음
+* 상태: `공통 템플릿 + 에이전트별 모델 라우팅 구현`
+* 현재 구현: 공통 LLM 템플릿과 에이전트별 모델 선택
+* 확정된 프롬프트 계약: 에이전트별 prompt override는 기본 schema-preserving instruction 뒤에 추가되며, 모델 선택은 `OPENAI_*_MODEL` 환경 변수로 조정

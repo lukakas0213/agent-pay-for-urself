@@ -19,12 +19,17 @@ class RecordingMarketDataProvider:
         return MarketData(
             symbol=symbol,
             latest_price=123.45,
+            broker_exchange_code="NASD",
             news_headlines=(f"{symbol} custom update",),
             financial_metrics={"pe_ratio": 18.0},
         )
 
 
 class RecordingBrokerAdapter(BrokerAdapter):
+    @property
+    def supports_live_submission(self) -> bool:
+        return True
+
     def __init__(self) -> None:
         self.submitted_symbols: list[str] = []
 
@@ -76,6 +81,7 @@ def test_main_agent_uses_configured_market_data_provider() -> None:
 
     assert provider.requested_symbols == ["AAPL"]
     assert result.market_data[0].latest_price == 123.45
+    assert result.market_data[0].broker_exchange_code == "NASD"
     assert result.market_data[0].financial_metrics["pe_ratio"] == 18.0
 
 
@@ -98,13 +104,19 @@ def test_order_execution_submits_only_executable_orders_through_broker_adapter()
                 rationale="hold signal",
                 risk_approved=True,
             ),
-        )
+        ),
+        market_data=(
+            MarketData(symbol="AAPL", latest_price=201.25, broker_exchange_code="NASD"),
+            MarketData(symbol="MSFT", latest_price=301.5, broker_exchange_code="NYSE"),
+        ),
     )
 
     submissions = order_execution_agent.submit_orders(orders)
 
     assert [submission.symbol for submission in submissions] == ["AAPL"]
     assert broker_adapter.submitted_symbols == ["AAPL"]
+    assert orders[0].broker_exchange_code == "NASD"
+    assert orders[0].limit_price == 201.25
 
 
 def test_main_agent_blocks_symbols_outside_user_mandate() -> None:

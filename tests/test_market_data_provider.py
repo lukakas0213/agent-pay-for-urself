@@ -60,7 +60,7 @@ class FakeTicker:
 def test_yahoo_finance_provider_uses_fast_info_and_normalizes_news() -> None:
     ticker = FakeTicker(
         fast_info={"lastPrice": 212.34},
-        info={"trailingPE": 31.2},
+        info={"trailingPE": 31.2, "exchange": "NMS"},
         news=[
             {"title": "Apple launches new feature"},
             {"content": {"title": "Analysts revisit Apple outlook"}},
@@ -73,6 +73,7 @@ def test_yahoo_finance_provider_uses_fast_info_and_normalizes_news() -> None:
 
     assert data.symbol == "AAPL"
     assert data.latest_price == 212.34
+    assert data.broker_exchange_code == "NASD"
     assert data.news_headlines == (
         "Apple launches new feature",
         "Analysts revisit Apple outlook",
@@ -84,7 +85,7 @@ def test_yahoo_finance_provider_uses_fast_info_and_normalizes_news() -> None:
 def test_yahoo_finance_provider_falls_back_to_history_and_forward_pe() -> None:
     ticker = FakeTicker(
         fast_info={},
-        info={"trailingPE": None, "forwardPE": 18.5},
+        info={"trailingPE": None, "forwardPE": 18.5, "fullExchangeName": "NYSE"},
         news=[],
         history_values=[101.25, 103.75],
     )
@@ -94,6 +95,7 @@ def test_yahoo_finance_provider_falls_back_to_history_and_forward_pe() -> None:
 
     assert data.symbol == "MSFT"
     assert data.latest_price == 103.75
+    assert data.broker_exchange_code == "NYSE"
     assert data.news_headlines == ()
     assert data.financial_metrics == {"pe_ratio": 18.5}
     assert ticker.requested_history_period == "5d"

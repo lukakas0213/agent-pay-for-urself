@@ -22,7 +22,7 @@ WorkflowService = Annotated[DecisionWorkflowService, Depends(get_decision_workfl
         "Runs the current multi-agent workflow for the requested symbols: data collection, "
         "signal analysis, risk validation, buy/sell/hold decision, order planning, and "
         "evaluation summary. Use this endpoint to inspect analysis scores, risk checks, "
-        "decisions, and non-submitted order plans before any real broker integration exists."
+        "decisions, and non-submitted order plans even when a broker adapter is configured."
     ),
 )
 def create_decision(
