@@ -42,6 +42,7 @@
 
 * 요청과 응답 본문은 JSON 기준이다.
 * 종목 심볼은 내부 워크플로우에서 대문자로 정규화된다.
+* `MARKET_DATA_PROVIDER=yahoo`일 때 삼성전자 `005930`은 Yahoo 조회용으로 `005930.KS`를 사용하지만, 공개 API 응답과 워크플로우 결과의 `symbol`은 원래 요청값을 유지한다.
 * `POST /decisions`는 주문 계획만 반환한다. 실제 브로커 주문 제출은 `POST /orders/submit` 또는 `POST /orders/submissions`에서만 발생한다.
 * `runtime.llm_mode`는 `model` 또는 `fallback`이다.
 * `runtime.agent_models`는 설정된 경우 에이전트 이름 -> 모델명 매핑을 담는다.
@@ -293,6 +294,8 @@
 오류 상태 코드:
 
 * `422`: 잘못된 요청 형식. 예: 공백 심볼, 범위를 벗어난 `max_position_weight`
+* `502`: 워크플로우가 사용하는 외부 데이터/LLM 의존성 조회 실패
+* `500`: 예기치 않은 내부 오류
 
 ## POST /orders/submit
 

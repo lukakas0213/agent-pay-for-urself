@@ -1,3 +1,5 @@
+from urllib.parse import urlsplit
+
 from agent_pay_for_urself.adapters import KisMockBrokerAdapter, KisMockBrokerConfig
 from agent_pay_for_urself.schemas import OrderPlan
 
@@ -16,7 +18,8 @@ class RecordingSender:
                 "timeout_seconds": timeout_seconds,
             }
         )
-        if url.endswith("/oauth2/tokenP"):
+        request_path = urlsplit(url).path
+        if request_path.endswith("/oauth2/tokenP"):
             return __import__(
                 "agent_pay_for_urself.adapters.kis_broker", fromlist=["KisHttpResponse"]
             ).KisHttpResponse(
@@ -24,6 +27,35 @@ class RecordingSender:
                 payload={
                     "access_token": "mock-token",
                     "access_token_token_expired": "2099-12-31 23:59:59",
+                },
+            )
+        if request_path.endswith("/uapi/domestic-stock/v1/trading/inquire-balance"):
+            return __import__(
+                "agent_pay_for_urself.adapters.kis_broker", fromlist=["KisHttpResponse"]
+            ).KisHttpResponse(
+                status_code=200,
+                payload={
+                    "rt_cd": "0",
+                    "msg1": "ok",
+                    "output2": {
+                        "dnca_tot_amt": "100000",
+                        "pchs_amt_smtl_amt": "100000",
+                        "tot_evlu_amt": "125000",
+                        "evlu_pfls_smtl_amt": "25000",
+                        "evlu_pfls_smtl_rt": "25.0",
+                    },
+                    "output1": [
+                        {
+                            "pdno": "AAPL",
+                            "prdt_name": "Apple",
+                            "hldg_qty": "2",
+                            "pchs_avg_pric": "50000",
+                            "prpr": "62500",
+                            "evlu_amt": "125000",
+                            "evlu_pfls_amt": "25000",
+                            "evlu_pfls_rt": "25.0",
+                        }
+                    ],
                 },
             )
         return __import__(
@@ -92,6 +124,33 @@ def test_kis_mock_broker_rejects_order_without_exchange_metadata() -> None:
 
     assert submission.accepted is False
     assert "broker_exchange_code" in submission.message
+
+
+def test_kis_mock_broker_parses_account_snapshot() -> None:
+    sender = RecordingSender()
+    adapter = KisMockBrokerAdapter(
+        KisMockBrokerConfig(
+            app_key="app-key",
+            app_secret="app-secret",
+            account_number="12345678",
+        ),
+        request_sender=sender,
+    )
+
+    snapshot = adapter.get_account_snapshot()
+
+    assert snapshot.available is True
+    assert snapshot.broker == "kis_mock"
+    assert snapshot.account_masked == "****5678"
+    assert snapshot.summary is not None
+    assert snapshot.summary.total_evaluation_amount == 125000.0
+    assert snapshot.summary.total_profit_loss == 25000.0
+    assert snapshot.summary.total_profit_loss_rate == 0.25
+    assert len(snapshot.holdings) == 1
+    assert snapshot.holdings[0].symbol == "AAPL"
+    assert snapshot.holdings[0].profit_loss_rate == 0.25
+    assert sender.calls[-1]["method"] == "GET"
+    assert "/uapi/domestic-stock/v1/trading/inquire-balance" in str(sender.calls[-1]["url"])
 
 
 def test_kis_mock_broker_supports_live_submission_only_with_account() -> None:

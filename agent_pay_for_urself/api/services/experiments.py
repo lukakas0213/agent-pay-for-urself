@@ -10,11 +10,15 @@ from agent_pay_for_urself.adapters import MarketDataProvider
 from agent_pay_for_urself.api.mappers.workflow import to_decision_response
 from agent_pay_for_urself.api.models import (
     AgentPromptOverridesRequest,
+    DecisionRequest,
     ExperimentCreateRequest,
     ExperimentListItem,
     ExperimentResponse,
+    ExperimentSaveRequest,
+    MandateRequest,
     RuntimeSummaryItem,
 )
+from agent_pay_for_urself.api.services.agent_prompts import AgentPromptService
 from agent_pay_for_urself.llm import AgentLLMClient
 from agent_pay_for_urself.orchestrator import MainAgent
 from agent_pay_for_urself.repositories import ExperimentRepository, WorkflowRunRepository
@@ -38,6 +42,7 @@ class ExperimentService:
         experiment_repository: ExperimentRepository,
         market_data_provider: MarketDataProvider,
         llm_client: AgentLLMClient,
+        agent_prompt_service: AgentPromptService | None = None,
         live_order_enabled: bool = False,
     ) -> None:
         self._main_agent = main_agent
@@ -45,19 +50,36 @@ class ExperimentService:
         self._experiment_repository = experiment_repository
         self._market_data_provider = market_data_provider
         self._llm_client = llm_client
+        self._agent_prompt_service = agent_prompt_service
         self._live_order_enabled = live_order_enabled
 
     def create(self, request: ExperimentCreateRequest) -> ExperimentResponse:
         workflow_request = InvestmentRequest(
             symbols=tuple(request.decision.symbols),
             max_position_weight=request.decision.max_position_weight,
-            mandate=self._to_investment_mandate(request),
-            prompt_overrides=self._to_prompt_overrides(request.prompt_overrides),
+            mandate=self._to_investment_mandate(request.decision),
+            prompt_overrides=self._resolve_prompt_overrides(request.prompt_overrides),
         )
         result = self._main_agent.run(workflow_request)
         result = self._apply_experiment_safety(result)
         run_id = self._workflow_run_repository.save(result)
-        response = self._build_response(request, run_id, result)
+        response = self._build_response(
+            name=request.name,
+            description=request.description,
+            run_id=run_id,
+            decision=request.decision,
+            result=result,
+        )
+        self._experiment_repository.save(response.model_dump(mode="json"))
+        return response
+
+    def save_run(self, request: ExperimentSaveRequest) -> ExperimentResponse:
+        result = self._workflow_run_repository.get(request.run_id)
+        if result is None:
+            raise LookupError(f"workflow run not found: {request.run_id}")
+        response = self._build_response_from_result(
+            request.name, request.description, request.run_id, result
+        )
         self._experiment_repository.save(response.model_dump(mode="json"))
         return response
 
@@ -72,20 +94,44 @@ class ExperimentService:
 
     def _build_response(
         self,
-        request: ExperimentCreateRequest,
+        *,
+        name: str,
+        description: str,
         run_id: str,
+        decision: DecisionRequest,
         result: WorkflowResult,
     ) -> ExperimentResponse:
+        runtime = self._runtime_summary()
         return ExperimentResponse(
             experiment_id=uuid4().hex,
             run_id=run_id,
-            name=request.name,
-            description=request.description,
+            name=name,
+            description=description,
             created_at=datetime.now(UTC).isoformat(),
-            decision=request.decision,
-            prompt_overrides=request.prompt_overrides,
-            runtime=self._runtime_summary(),
-            result=to_decision_response(run_id, result, self._runtime_summary()),
+            decision=decision,
+            prompt_overrides=self._to_prompt_overrides_request(result.request.prompt_overrides),
+            runtime=runtime,
+            result=to_decision_response(run_id, result, runtime),
+        )
+
+    def _build_response_from_result(
+        self,
+        name: str,
+        description: str,
+        run_id: str,
+        result: WorkflowResult,
+    ) -> ExperimentResponse:
+        decision = DecisionRequest(
+            symbols=list(result.request.symbols),
+            max_position_weight=result.request.max_position_weight,
+            mandate=self._to_mandate_request(result.request.mandate),
+        )
+        return self._build_response(
+            name=name,
+            description=description,
+            run_id=run_id,
+            decision=decision,
+            result=result,
         )
 
     def _runtime_summary(self) -> RuntimeSummaryItem:
@@ -125,18 +171,29 @@ class ExperimentService:
             reason=f"experiment live order disabled; original plan: {order.reason}",
         )
 
-    def _to_investment_mandate(
-        self,
-        request: ExperimentCreateRequest,
-    ) -> InvestmentMandate | None:
-        mandate = request.decision.mandate
+    def _to_investment_mandate(self, decision: DecisionRequest) -> InvestmentMandate | None:
+        mandate = decision.mandate
         if mandate is None:
             return None
         return InvestmentMandate(
             objective=mandate.objective,
             allowed_symbols=tuple(mandate.allowed_symbols),
             excluded_symbols=tuple(mandate.excluded_symbols),
-            max_position_weight=request.decision.max_position_weight,
+            max_position_weight=decision.max_position_weight,
+            max_order_notional=mandate.max_order_notional,
+            min_cash_weight=mandate.min_cash_weight,
+            risk_tolerance=mandate.risk_tolerance,
+            requires_approval_for_live_orders=mandate.requires_approval_for_live_orders,
+            user_notes=mandate.user_notes,
+        )
+
+    def _to_mandate_request(self, mandate: InvestmentMandate | None) -> MandateRequest | None:
+        if mandate is None:
+            return None
+        return MandateRequest(
+            objective=mandate.objective,
+            allowed_symbols=list(mandate.allowed_symbols),
+            excluded_symbols=list(mandate.excluded_symbols),
             max_order_notional=mandate.max_order_notional,
             min_cash_weight=mandate.min_cash_weight,
             risk_tolerance=mandate.risk_tolerance,
@@ -146,8 +203,10 @@ class ExperimentService:
 
     def _to_prompt_overrides(
         self,
-        request: AgentPromptOverridesRequest,
+        request: AgentPromptOverridesRequest | AgentPromptOverrides,
     ) -> AgentPromptOverrides:
+        if isinstance(request, AgentPromptOverrides):
+            return request
         return AgentPromptOverrides(
             data_collection=request.data_collection,
             data_analysis=request.data_analysis,
@@ -156,6 +215,66 @@ class ExperimentService:
             order_execution=request.order_execution,
             log_evaluation=request.log_evaluation,
         )
+
+    def _to_prompt_overrides_request(
+        self,
+        request: AgentPromptOverridesRequest | AgentPromptOverrides,
+    ) -> AgentPromptOverridesRequest:
+        if isinstance(request, AgentPromptOverridesRequest):
+            return request
+        return AgentPromptOverridesRequest(
+            data_collection=request.data_collection,
+            data_analysis=request.data_analysis,
+            risk_management=request.risk_management,
+            buy_sell=request.buy_sell,
+            order_execution=request.order_execution,
+            log_evaluation=request.log_evaluation,
+        )
+
+    def _resolve_prompt_overrides(
+        self,
+        request_overrides: AgentPromptOverridesRequest,
+    ) -> AgentPromptOverrides:
+        if self._agent_prompt_service is None:
+            return self._to_prompt_overrides(request_overrides)
+        stored_overrides = self._agent_prompt_service.resolve_prompt_overrides(
+            AgentPromptOverrides()
+        )
+        return AgentPromptOverrides(
+            data_collection=self._merge_prompt_text(
+                stored_overrides.data_collection,
+                request_overrides.data_collection,
+            ),
+            data_analysis=self._merge_prompt_text(
+                stored_overrides.data_analysis,
+                request_overrides.data_analysis,
+            ),
+            risk_management=self._merge_prompt_text(
+                stored_overrides.risk_management,
+                request_overrides.risk_management,
+            ),
+            buy_sell=self._merge_prompt_text(
+                stored_overrides.buy_sell,
+                request_overrides.buy_sell,
+            ),
+            order_execution=self._merge_prompt_text(
+                stored_overrides.order_execution,
+                request_overrides.order_execution,
+            ),
+            log_evaluation=self._merge_prompt_text(
+                stored_overrides.log_evaluation,
+                request_overrides.log_evaluation,
+            ),
+        )
+
+    def _merge_prompt_text(self, base_prompt: str, override_prompt: str) -> str:
+        base = base_prompt.strip()
+        override = override_prompt.strip()
+        if not base:
+            return override
+        if not override:
+            return base
+        return f"{base}\n\n{override}"
 
     def _to_list_item(self, payload: dict[str, object]) -> ExperimentListItem:
         result = payload.get("result")

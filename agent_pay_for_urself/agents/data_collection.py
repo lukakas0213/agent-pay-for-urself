@@ -5,7 +5,12 @@ can stay stable while real data clients are introduced behind an adapter
 boundary.
 """
 
-from agent_pay_for_urself.adapters.market_data import MarketDataProvider, StubMarketDataProvider
+from agent_pay_for_urself.adapters.market_data import (
+    MarketDataProvider,
+    StubMarketDataProvider,
+    YahooFinanceMarketDataProvider,
+    normalize_yahoo_finance_symbol,
+)
 from agent_pay_for_urself.agents.base import LLMEnabledAgent
 from agent_pay_for_urself.llm import AgentLLMClient, to_json_object
 from agent_pay_for_urself.llm.serde import parse_market_data_items
@@ -35,13 +40,21 @@ class DataCollectionAgent(LLMEnabledAgent):
         request: InvestmentRequest,
         prompt_override: str = "",
     ) -> tuple[MarketData, ...]:
+        canonical_symbols = tuple(symbol.strip().upper() for symbol in request.symbols)
+        provider_symbols = tuple(
+            self._resolve_provider_symbol(symbol) for symbol in canonical_symbols
+        )
         fallback = tuple(
-            self.market_data_provider.get_market_data(symbol.upper()) for symbol in request.symbols
+            self._canonicalize_market_data(
+                self.market_data_provider.get_market_data(provider_symbol),
+                symbol,
+            )
+            for symbol, provider_symbol in zip(canonical_symbols, provider_symbols, strict=False)
         )
         payload = self._resolve_llm_payload(
             operation_name="collect",
             input_payload={
-                "request": {"symbols": request.symbols},
+                "request": {"symbols": canonical_symbols},
                 "provider_market_data": to_json_object({"market_data": fallback})["market_data"],
             },
             fallback_payload={
@@ -51,6 +64,28 @@ class DataCollectionAgent(LLMEnabledAgent):
             prompt_override=prompt_override,
         )
         try:
-            return parse_market_data_items(payload["market_data"])
+            parsed_market_data = parse_market_data_items(payload["market_data"])
         except (KeyError, TypeError, ValueError):
             return fallback
+        if len(parsed_market_data) != len(canonical_symbols):
+            return fallback
+        return tuple(
+            self._canonicalize_market_data(item, symbol)
+            for item, symbol in zip(parsed_market_data, canonical_symbols, strict=False)
+        )
+
+    def _resolve_provider_symbol(self, symbol: str) -> str:
+        if isinstance(self.market_data_provider, YahooFinanceMarketDataProvider):
+            return normalize_yahoo_finance_symbol(symbol)
+        return symbol
+
+    def _canonicalize_market_data(self, market_data: MarketData, symbol: str) -> MarketData:
+        if market_data.symbol == symbol:
+            return market_data
+        return MarketData(
+            symbol=symbol,
+            latest_price=market_data.latest_price,
+            broker_exchange_code=market_data.broker_exchange_code,
+            news_headlines=market_data.news_headlines,
+            financial_metrics=market_data.financial_metrics,
+        )

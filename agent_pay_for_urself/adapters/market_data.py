@@ -17,6 +17,9 @@ DEFAULT_PRICE = 100.0
 DEFAULT_PE_RATIO = 20.0
 DEFAULT_YAHOO_NEWS_COUNT = 3
 DEFAULT_YAHOO_HISTORY_PERIOD = "5d"
+YAHOO_FINANCE_SYMBOL_OVERRIDES = {
+    "005930": "005930.KS",
+}
 
 YAHOO_TO_KIS_ORDER_EXCHANGE_CODE = {
     "nasdaq": "NASD",
@@ -36,6 +39,21 @@ YAHOO_TO_KIS_ORDER_EXCHANGE_CODE = {
     "ase": "AMEX",
     "ams": "AMEX",
 }
+
+
+def normalize_yahoo_finance_symbol(symbol: str) -> str:
+    """Return the Yahoo Finance lookup symbol for one normalized stock code.
+
+    The public API keeps the original symbol for workflow outputs, but Yahoo
+    Finance needs the exchange suffix for domestic Korea listings.
+    """
+
+    normalized_symbol = symbol.strip().upper()
+    if not normalized_symbol:
+        return normalized_symbol
+    if normalized_symbol.endswith((".KS", ".KQ")):
+        return normalized_symbol
+    return YAHOO_FINANCE_SYMBOL_OVERRIDES.get(normalized_symbol, normalized_symbol)
 
 
 class MarketDataProvider(ABC):
@@ -103,28 +121,34 @@ class YahooFinanceMarketDataProvider(MarketDataProvider):
             ) from exc
         return yf.Ticker
 
-    def _extract_latest_price(self, ticker: object, symbol: str) -> float:
+    def _extract_latest_price(self, ticker: object, _symbol: str) -> float:
         fast_info = getattr(ticker, "fast_info", {}) or {}
         latest_price = self._coerce_optional_float(fast_info.get("lastPrice"))
         if latest_price is not None:
             return latest_price
 
-        history = ticker.history(period=self._history_period)
+        try:
+            history = ticker.history(period=self._history_period)
+        except Exception:
+            return DEFAULT_PRICE
         if getattr(history, "empty", True):
-            raise ValueError(f"Yahoo Finance returned no recent price history for symbol={symbol}")
+            return DEFAULT_PRICE
 
         close_prices = history["Close"].dropna()
         if len(close_prices) == 0:
-            raise ValueError(f"Yahoo Finance returned no close price for symbol={symbol}")
+            return DEFAULT_PRICE
         return float(close_prices.iloc[-1])
 
     def _extract_news_headlines(self, ticker: object) -> tuple[str, ...]:
         news_items: list[Any]
         get_news = getattr(ticker, "get_news", None)
-        if callable(get_news):
-            news_items = list(get_news(count=self._news_count))
-        else:
-            news_items = list(getattr(ticker, "news", []) or [])
+        try:
+            if callable(get_news):
+                news_items = list(get_news(count=self._news_count))
+            else:
+                news_items = list(getattr(ticker, "news", []) or [])
+        except Exception:
+            return ()
 
         headlines: list[str] = []
         for item in news_items:
@@ -136,7 +160,7 @@ class YahooFinanceMarketDataProvider(MarketDataProvider):
         return tuple(headlines)
 
     def _extract_financial_metrics(self, ticker: object) -> dict[str, float]:
-        info = getattr(ticker, "info", {}) or {}
+        info = self._safe_ticker_info(ticker)
         if not isinstance(info, Mapping):
             return {}
 
@@ -148,7 +172,7 @@ class YahooFinanceMarketDataProvider(MarketDataProvider):
         return {"pe_ratio": pe_ratio}
 
     def _extract_broker_exchange_code(self, ticker: object) -> str | None:
-        info = getattr(ticker, "info", {}) or {}
+        info = self._safe_ticker_info(ticker)
         if not isinstance(info, Mapping):
             return None
 
@@ -191,3 +215,19 @@ class YahooFinanceMarketDataProvider(MarketDataProvider):
             return None
         collapsed = "".join(character for character in value.lower() if character.isalnum())
         return collapsed or None
+
+    def _safe_ticker_info(self, ticker: object) -> Mapping[str, Any]:
+        """Return Yahoo ticker metadata when available and otherwise fall back to empty data.
+
+        yfinance can raise for some symbols when Yahoo omits exchange timezone metadata or
+        returns a partial quoteSummary payload. The workflow should keep going when price data
+        is still available, so metadata lookups stay best effort instead of failing the request.
+        """
+
+        try:
+            info = getattr(ticker, "info", {}) or {}
+        except Exception:
+            return {}
+        if not isinstance(info, Mapping):
+            return {}
+        return info

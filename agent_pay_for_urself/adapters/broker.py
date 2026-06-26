@@ -21,6 +21,43 @@ class BrokerSubmission:
     message: str
 
 
+@dataclass(frozen=True)
+class BrokerAccountHolding:
+    """One normalized holding item returned by a broker account lookup."""
+
+    symbol: str
+    name: str
+    quantity: int
+    average_price: float
+    current_price: float
+    market_value: float
+    profit_loss: float
+    profit_loss_rate: float
+
+
+@dataclass(frozen=True)
+class BrokerAccountSummary:
+    """Normalized account summary returned by a broker account lookup."""
+
+    cash_balance: float
+    total_purchase_amount: float
+    total_evaluation_amount: float
+    total_profit_loss: float
+    total_profit_loss_rate: float
+
+
+@dataclass(frozen=True)
+class BrokerAccountSnapshot:
+    """Account lookup result returned by a broker adapter."""
+
+    available: bool
+    broker: str
+    account_masked: str | None
+    summary: BrokerAccountSummary | None
+    holdings: tuple[BrokerAccountHolding, ...]
+    message: str
+
+
 class BrokerAdapter(ABC):
     """Boundary for live broker submission and order-status lookup."""
 
@@ -33,6 +70,10 @@ class BrokerAdapter(ABC):
     @abstractmethod
     def get_order_status(self, broker_order_id: str) -> str:
         """Fetch the current order status for a broker order id."""
+
+    @abstractmethod
+    def get_account_snapshot(self) -> BrokerAccountSnapshot:
+        """Fetch one normalized account snapshot from the configured broker."""
 
 
 class NoopBrokerAdapter(BrokerAdapter):
@@ -48,3 +89,13 @@ class NoopBrokerAdapter(BrokerAdapter):
 
     def get_order_status(self, broker_order_id: str) -> str:
         return "unavailable"
+
+    def get_account_snapshot(self) -> BrokerAccountSnapshot:
+        return BrokerAccountSnapshot(
+            available=False,
+            broker="noop",
+            account_masked=None,
+            summary=None,
+            holdings=(),
+            message="live broker account lookup is not configured",
+        )

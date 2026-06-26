@@ -45,6 +45,27 @@ class ExperimentCreateRequest(BaseModel):
         return description.strip()
 
 
+class ExperimentSaveRequest(BaseModel):
+    """Request body for saving an already completed workflow run."""
+
+    run_id: str = Field(min_length=1)
+    name: str = Field(min_length=1, max_length=120)
+    description: str = Field(default="", max_length=2000)
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, name: str) -> str:
+        cleaned_name = name.strip()
+        if not cleaned_name:
+            raise ValueError("Experiment name must contain non-whitespace characters.")
+        return cleaned_name
+
+    @field_validator("description")
+    @classmethod
+    def validate_description(cls, description: str) -> str:
+        return description.strip()
+
+
 class ExperimentListItem(BaseModel):
     """Compact saved experiment item for the history list."""
 

@@ -6,10 +6,16 @@ import logging
 
 from agent_pay_for_urself.adapters import MarketDataProvider, StubMarketDataProvider
 from agent_pay_for_urself.api.models.decisions import RuntimeSummaryItem
+from agent_pay_for_urself.api.services.agent_prompts import AgentPromptService
 from agent_pay_for_urself.llm import AgentLLMClient, NoopAgentLLMClient
 from agent_pay_for_urself.orchestrator import MainAgent
 from agent_pay_for_urself.repositories.workflow_runs import WorkflowRunRepository
-from agent_pay_for_urself.schemas import InvestmentMandate, InvestmentRequest, WorkflowResult
+from agent_pay_for_urself.schemas import (
+    AgentPromptOverrides,
+    InvestmentMandate,
+    InvestmentRequest,
+    WorkflowResult,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -23,11 +29,13 @@ class DecisionWorkflowService:
         workflow_run_repository: WorkflowRunRepository,
         market_data_provider: MarketDataProvider | None = None,
         llm_client: AgentLLMClient | None = None,
+        agent_prompt_service: AgentPromptService | None = None,
     ) -> None:
         self._main_agent = main_agent
         self._workflow_run_repository = workflow_run_repository
         self._market_data_provider = market_data_provider or StubMarketDataProvider()
         self._llm_client = llm_client or NoopAgentLLMClient()
+        self._agent_prompt_service = agent_prompt_service
 
     def run(
         self,
@@ -39,6 +47,7 @@ class DecisionWorkflowService:
             symbols=tuple(symbols),
             max_position_weight=max_position_weight,
             mandate=mandate,
+            prompt_overrides=self._resolve_prompt_overrides(),
         )
         result = self._main_agent.run(request)
         run_id = self._workflow_run_repository.save(result)
@@ -54,6 +63,11 @@ class DecisionWorkflowService:
 
     def get(self, run_id: str) -> WorkflowResult | None:
         return self._workflow_run_repository.get(run_id)
+
+    def _resolve_prompt_overrides(self):
+        if self._agent_prompt_service is None:
+            return AgentPromptOverrides()
+        return self._agent_prompt_service.resolve_prompt_overrides(AgentPromptOverrides())
 
     def runtime_summary(self) -> RuntimeSummaryItem:
         """Expose the current workflow runtime mode for API responses."""

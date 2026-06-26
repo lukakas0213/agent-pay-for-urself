@@ -13,6 +13,9 @@
 * [repository-map.md](repository-map.md)
   현재 저장소의 주요 디렉터리와 책임 경계를 Mermaid 차트로 요약한다.
   주요 패키지 구조나 문서화 대상 디렉터리 책임이 바뀌면 갱신한다.
+* [frontend-guide.md](frontend-guide.md)
+  프론트 화면을 비개발자도 따라할 수 있게 사용하는 방법을 안내한다.
+  프론트 화면 구성, 입력 흐름, 저장/보고서 동작이 바뀌면 갱신한다.
 * [api-contracts.md](api-contracts.md)
   현재 FastAPI 공개 엔드포인트의 요청/응답 계약, 상태 코드, 운영상 의미를 한 곳에 모아 둔다.
   `agent_pay_for_urself/api/routes/`, `agent_pay_for_urself/api/models/`, `agent_pay_for_urself/api/services/`의 공개 계약이 바뀌면 갱신한다.

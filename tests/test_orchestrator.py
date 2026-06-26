@@ -1,4 +1,9 @@
-from agent_pay_for_urself.adapters.broker import BrokerAdapter, BrokerSubmission
+from agent_pay_for_urself.adapters import YahooFinanceMarketDataProvider
+from agent_pay_for_urself.adapters.broker import (
+    BrokerAccountSnapshot,
+    BrokerAdapter,
+    BrokerSubmission,
+)
 from agent_pay_for_urself.agents import DataCollectionAgent, OrderExecutionAgent
 from agent_pay_for_urself.orchestrator import MainAgent
 from agent_pay_for_urself.schemas import (
@@ -25,6 +30,17 @@ class RecordingMarketDataProvider:
         )
 
 
+class FakeYahooTicker:
+    fast_info = {"lastPrice": 123.45}
+    info: dict[str, object] = {}
+
+    def get_news(self, count: int) -> list[dict[str, object]]:
+        return []
+
+    def history(self, period: str) -> object:
+        raise AssertionError("history should not be called when fast_info has a price")
+
+
 class RecordingBrokerAdapter(BrokerAdapter):
     @property
     def supports_live_submission(self) -> bool:
@@ -44,6 +60,16 @@ class RecordingBrokerAdapter(BrokerAdapter):
 
     def get_order_status(self, broker_order_id: str) -> str:
         return "filled"
+
+    def get_account_snapshot(self) -> BrokerAccountSnapshot:
+        return BrokerAccountSnapshot(
+            available=True,
+            broker="recording",
+            account_masked="****5678",
+            summary=None,
+            holdings=(),
+            message="ok",
+        )
 
 
 def test_main_agent_runs_minimum_workflow() -> None:
@@ -83,6 +109,24 @@ def test_main_agent_uses_configured_market_data_provider() -> None:
     assert result.market_data[0].latest_price == 123.45
     assert result.market_data[0].broker_exchange_code == "NASD"
     assert result.market_data[0].financial_metrics["pe_ratio"] == 18.0
+
+
+def test_main_agent_preserves_canonical_symbol_for_yahoo_korean_ticker() -> None:
+    requested_symbols: list[str] = []
+    provider = YahooFinanceMarketDataProvider(
+        ticker_factory=lambda symbol: requested_symbols.append(symbol) or FakeYahooTicker()
+    )
+    request = InvestmentRequest(symbols=("005930",), max_position_weight=0.2)
+    agent = MainAgent(data_collection_agent=DataCollectionAgent(market_data_provider=provider))
+
+    result = agent.run(request)
+
+    assert requested_symbols == ["005930.KS"]
+    assert [data.symbol for data in result.market_data] == ["005930"]
+    assert [signal.symbol for signal in result.analysis_signals] == ["005930"]
+    assert [decision.symbol for decision in result.trade_decisions] == ["005930"]
+    assert [order.symbol for order in result.order_plans] == ["005930"]
+    assert result.market_data[0].latest_price == 123.45
 
 
 def test_order_execution_submits_only_executable_orders_through_broker_adapter() -> None:

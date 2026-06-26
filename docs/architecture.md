@@ -7,7 +7,7 @@
 * Workflow results are currently stored only in an in-memory repository so console follow-up requests can resolve a prior run by `run_id`.
 * Each workflow agent can optionally route through a shared LLM template layer backed by OpenAI Responses API, and the runtime can assign a different model per agent.
 * `MainAgent` owns the user mandate for each run and enforces it through `PolicyGuardrail`.
-* The FastAPI layer emits minimal INFO-level console logs for request start/completion, and workflow/order services log completion summaries with `run_id`.
+* The FastAPI layer configures a shared console handler for the `agent_pay_for_urself` namespace so request start/completion and workflow/order completion logs are visible in the CLI.
 * If `OPENAI_API_KEY` is not configured, the workflow falls back to deterministic in-process logic and does not call an external LLM.
 
 ## Broker Direction

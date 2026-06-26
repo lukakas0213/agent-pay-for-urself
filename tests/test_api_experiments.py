@@ -139,6 +139,38 @@ def test_create_experiment_runs_saves_and_lists_history(tmp_path) -> None:
     app.dependency_overrides.clear()
 
 
+def test_save_existing_run_creates_a_second_report_entry(tmp_path) -> None:
+    service = _override_experiment_service(tmp_path / "experiments.json")
+    app.dependency_overrides[get_experiment_service] = lambda: service
+    client = TestClient(app)
+
+    run_response = client.post(
+        "/experiments",
+        json={
+            "name": "First run",
+            "decision": {"symbols": ["AAPL"], "max_position_weight": 0.2},
+            "prompt_overrides": {},
+        },
+    )
+    assert run_response.status_code == 200
+    run_id = run_response.json()["run_id"]
+
+    save_response = client.post(
+        "/experiments/from-run",
+        json={"run_id": run_id, "name": "Saved run", "description": "Saved from main page."},
+    )
+
+    assert save_response.status_code == 200
+    saved = save_response.json()
+    assert saved["run_id"] == run_id
+    assert saved["name"] == "Saved run"
+
+    history = client.get("/experiments").json()
+    assert len(history) == 2
+    assert {item["name"] for item in history} == {"First run", "Saved run"}
+    app.dependency_overrides.clear()
+
+
 def test_experiment_blocks_submittable_orders_unless_live_order_env_is_enabled(tmp_path) -> None:
     app.dependency_overrides[get_experiment_service] = lambda: _override_experiment_service(
         tmp_path / "experiments.json",

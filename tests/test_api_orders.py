@@ -1,6 +1,10 @@
 from fastapi.testclient import TestClient
 
-from agent_pay_for_urself.adapters.broker import BrokerAdapter, BrokerSubmission
+from agent_pay_for_urself.adapters.broker import (
+    BrokerAccountSnapshot,
+    BrokerAdapter,
+    BrokerSubmission,
+)
 from agent_pay_for_urself.agents import OrderExecutionAgent
 from agent_pay_for_urself.api.dependencies import (
     get_decision_workflow_service,
@@ -40,6 +44,16 @@ class LiveBrokerAdapter(BrokerAdapter):
     def get_order_status(self, broker_order_id: str) -> str:
         return "submitted"
 
+    def get_account_snapshot(self) -> BrokerAccountSnapshot:
+        return BrokerAccountSnapshot(
+            available=True,
+            broker="live",
+            account_masked="****5678",
+            summary=None,
+            holdings=(),
+            message="ok",
+        )
+
 
 class DisabledBrokerAdapter(BrokerAdapter):
     @property
@@ -56,6 +70,16 @@ class DisabledBrokerAdapter(BrokerAdapter):
 
     def get_order_status(self, broker_order_id: str) -> str:
         return "unavailable"
+
+    def get_account_snapshot(self) -> BrokerAccountSnapshot:
+        return BrokerAccountSnapshot(
+            available=False,
+            broker="disabled",
+            account_masked=None,
+            summary=None,
+            holdings=(),
+            message="unavailable",
+        )
 
 
 def _build_result() -> WorkflowResult:

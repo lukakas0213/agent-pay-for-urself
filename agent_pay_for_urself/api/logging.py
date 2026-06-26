@@ -3,12 +3,32 @@
 from __future__ import annotations
 
 import logging
+import sys
 import time
 
 from fastapi import FastAPI, Request
 
-logger = logging.getLogger("agent_pay_for_urself.api")
+logger = logging.getLogger("agent_pay_for_urself")
 logger.setLevel(logging.INFO)
+logger.propagate = False
+
+
+def _install_console_handler() -> None:
+    """Attach one shared console handler for app logs.
+
+    The package logger owns the handler so request middleware and service loggers
+    under the `agent_pay_for_urself` namespace all write to the same CLI stream.
+    """
+
+    for handler in logger.handlers:
+        if getattr(handler, "_agent_pay_for_urself_console_handler", False):
+            return
+
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setLevel(logging.INFO)
+    handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
+    handler._agent_pay_for_urself_console_handler = True  # type: ignore[attr-defined]
+    logger.addHandler(handler)
 
 
 def install_request_logging(app: FastAPI) -> None:
@@ -17,6 +37,8 @@ def install_request_logging(app: FastAPI) -> None:
     The middleware logs request start, successful completion, and failures
     without capturing request bodies or other sensitive payloads.
     """
+
+    _install_console_handler()
 
     @app.middleware("http")
     async def _log_request(request: Request, call_next):

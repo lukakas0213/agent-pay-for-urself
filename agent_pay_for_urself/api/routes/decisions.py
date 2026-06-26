@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from agent_pay_for_urself.api.dependencies import get_decision_workflow_service
 from agent_pay_for_urself.api.mappers.workflow import to_decision_response
@@ -31,12 +31,19 @@ def create_decision(
 ) -> DecisionResponse:
     """Run the orchestrated decision workflow and return a stored result."""
 
-    run_id, result = workflow_service.run(
-        symbols=request.symbols,
-        max_position_weight=request.max_position_weight,
-        mandate=_to_investment_mandate(request),
-    )
-    return to_decision_response(run_id, result, workflow_service.runtime_summary())
+    try:
+        run_id, result = workflow_service.run(
+            symbols=request.symbols,
+            max_position_weight=request.max_position_weight,
+            mandate=_to_investment_mandate(request),
+        )
+        return to_decision_response(run_id, result, workflow_service.runtime_summary())
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"decision workflow failed: {exc}") from exc
 
 
 def _to_investment_mandate(request: DecisionRequest) -> InvestmentMandate | None:

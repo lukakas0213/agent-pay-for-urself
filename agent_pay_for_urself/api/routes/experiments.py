@@ -9,6 +9,7 @@ from agent_pay_for_urself.api.models import (
     ExperimentCreateRequest,
     ExperimentListItem,
     ExperimentResponse,
+    ExperimentSaveRequest,
 )
 from agent_pay_for_urself.api.services.experiments import ExperimentService
 
@@ -24,6 +25,23 @@ def create_experiment(
     """Run an experiment workflow and persist the complete result."""
 
     return experiment_service.create(request)
+
+
+@router.post(
+    "/from-run",
+    response_model=ExperimentResponse,
+    summary="Save an already completed workflow run",
+)
+def save_experiment_from_run(
+    request: ExperimentSaveRequest,
+    experiment_service: ExperimentServiceDependency,
+) -> ExperimentResponse:
+    """Persist an existing workflow result without re-running the workflow."""
+
+    try:
+        return experiment_service.save_run(request)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get("", response_model=list[ExperimentListItem], summary="List saved experiments")

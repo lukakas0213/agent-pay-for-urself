@@ -34,6 +34,8 @@ def test_decisions_openapi_documents_usage_summary() -> None:
     assert post_schema["summary"] == "Run investment decisions"
     assert "data collection" in post_schema["description"]
     assert "DecisionResponse" in str(post_schema["responses"]["200"])
+    assert "/account" in paths
+    assert paths["/account"]["get"]["summary"] == "Fetch broker account holdings"
     assert console_schema["summary"] == "Ask the console assistant"
     assert alias_schema["deprecated"] is True
 

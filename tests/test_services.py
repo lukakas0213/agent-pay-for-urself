@@ -1,4 +1,8 @@
-from agent_pay_for_urself.adapters.broker import BrokerAdapter, BrokerSubmission
+from agent_pay_for_urself.adapters.broker import (
+    BrokerAccountSnapshot,
+    BrokerAdapter,
+    BrokerSubmission,
+)
 from agent_pay_for_urself.agents import OrderExecutionAgent
 from agent_pay_for_urself.api.services.decision_workflow import DecisionWorkflowService
 from agent_pay_for_urself.llm import NoopAgentLLMClient
@@ -22,6 +26,16 @@ class LiveBrokerAdapter(BrokerAdapter):
 
     def get_order_status(self, broker_order_id: str) -> str:
         return "filled"
+
+    def get_account_snapshot(self) -> BrokerAccountSnapshot:
+        return BrokerAccountSnapshot(
+            available=True,
+            broker="live",
+            account_masked="****5678",
+            summary=None,
+            holdings=(),
+            message="ok",
+        )
 
 
 class ConfiguredLLMClient(NoopAgentLLMClient):

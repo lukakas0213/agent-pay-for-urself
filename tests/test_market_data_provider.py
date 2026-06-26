@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from agent_pay_for_urself.adapters import StubMarketDataProvider, YahooFinanceMarketDataProvider
+from agent_pay_for_urself.adapters.market_data import normalize_yahoo_finance_symbol
 from agent_pay_for_urself.api.dependencies import _build_market_data_provider
 
 
@@ -44,10 +45,14 @@ class FakeTicker:
         history_values: list[float] | None = None,
     ) -> None:
         self.fast_info = fast_info or {}
-        self.info = info or {}
+        self._info = info or {}
         self._news = news or []
         self._history = FakeHistoryFrame(history_values or [])
         self.requested_history_period: str | None = None
+
+    @property
+    def info(self) -> dict[str, object]:
+        return self._info
 
     def get_news(self, count: int) -> list[dict[str, object]]:
         return self._news[:count]
@@ -55,6 +60,21 @@ class FakeTicker:
     def history(self, period: str) -> FakeHistoryFrame:
         self.requested_history_period = period
         return self._history
+
+
+class ExplodingInfoTicker(FakeTicker):
+    @property
+    def info(self) -> dict[str, object]:
+        raise KeyError("exchangeTimezoneName")
+
+
+class ExplodingHistoryTicker(FakeTicker):
+    @property
+    def info(self) -> dict[str, object]:
+        raise KeyError("exchangeTimezoneName")
+
+    def history(self, period: str) -> FakeHistoryFrame:
+        raise KeyError("exchangeTimezoneName")
 
 
 def test_yahoo_finance_provider_uses_fast_info_and_normalizes_news() -> None:
@@ -99,6 +119,44 @@ def test_yahoo_finance_provider_falls_back_to_history_and_forward_pe() -> None:
     assert data.news_headlines == ()
     assert data.financial_metrics == {"pe_ratio": 18.5}
     assert ticker.requested_history_period == "5d"
+
+
+def test_normalize_yahoo_finance_symbol_maps_samsung_to_kospi_suffix() -> None:
+    assert normalize_yahoo_finance_symbol("005930") == "005930.KS"
+    assert normalize_yahoo_finance_symbol("005930.KS") == "005930.KS"
+    assert normalize_yahoo_finance_symbol("AAPL") == "AAPL"
+
+
+def test_yahoo_finance_provider_ignores_info_errors_after_price_lookup() -> None:
+    ticker = ExplodingInfoTicker(
+        fast_info={"lastPrice": 245.5},
+        news=[],
+    )
+    provider = YahooFinanceMarketDataProvider(ticker_factory=lambda symbol: ticker)
+
+    data = provider.get_market_data("005930")
+
+    assert data.symbol == "005930"
+    assert data.latest_price == 245.5
+    assert data.broker_exchange_code is None
+    assert data.news_headlines == ()
+    assert data.financial_metrics == {}
+
+
+def test_yahoo_finance_provider_falls_back_to_default_price_when_history_fails() -> None:
+    ticker = ExplodingHistoryTicker(
+        fast_info={},
+        news=[],
+    )
+    provider = YahooFinanceMarketDataProvider(ticker_factory=lambda symbol: ticker)
+
+    data = provider.get_market_data("005930")
+
+    assert data.symbol == "005930"
+    assert data.latest_price == 100.0
+    assert data.broker_exchange_code is None
+    assert data.news_headlines == ()
+    assert data.financial_metrics == {}
 
 
 def test_build_market_data_provider_returns_stub_by_default(
