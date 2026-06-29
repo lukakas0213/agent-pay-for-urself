@@ -11,6 +11,7 @@ import {
   agentDefinitions,
   fetchJson,
   formatMetrics,
+  normalizeDecisionResponse,
   formatPercent,
   formatScore,
 } from "../lib/workspace";
@@ -30,7 +31,7 @@ function loadLatestResult() {
   }
 
   try {
-    return JSON.parse(raw) as DecisionResponse;
+    return normalizeDecisionResponse(JSON.parse(raw));
   } catch {
     return null;
   }
@@ -139,13 +140,15 @@ export function AgentWorkspace({ agentKey }: Props) {
       ));
     }
 
-    if (agentKey === "risk_management") {
-      return latestResult.risk_assessments.map((item) => (
+    if (agentKey === "report") {
+      return latestResult.investment_reports.map((item) => (
         <article className="output-card" key={item.symbol}>
           <strong>{item.symbol}</strong>
-          <p>{item.approved ? "승인" : "거절"}</p>
-          <small>{item.reasons.join(" / ")}</small>
-          <small>비중 {formatPercent(item.max_position_weight)}</small>
+          <p>
+            {item.risk_approved ? "리스크 승인" : "리스크 보류"} · {actionLabel(item.recommended_action_bias)}
+          </p>
+          <small>{item.summary}</small>
+          <small>최대 비중 {formatPercent(item.max_position_weight)}</small>
         </article>
       ));
     }
@@ -154,7 +157,9 @@ export function AgentWorkspace({ agentKey }: Props) {
       return latestResult.decisions.map((item) => (
         <article className="output-card" key={item.symbol}>
           <strong>{item.symbol}</strong>
-          <p>{actionLabel(item.action)} · {formatScore(item.confidence)}</p>
+          <p>
+            {actionLabel(item.action)} · {formatScore(item.confidence)}
+          </p>
           <small>{item.rationale}</small>
         </article>
       ));

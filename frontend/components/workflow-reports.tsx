@@ -2,7 +2,22 @@
 
 import { useEffect, useState } from "react";
 
-import { fetchJson, ExperimentListItem, ExperimentResponse, actionLabel, formatDateTime, formatMetrics, formatPercent, formatScore, runtimeLabel } from "../lib/workspace";
+import {
+  ExperimentListItem,
+  ExperimentResponse,
+  actionLabel,
+  fetchJson,
+  formatDateTime,
+  formatMetrics,
+  formatPercent,
+  normalizeDecisionResponse,
+  formatScore,
+  runtimeLabel,
+} from "../lib/workspace";
+
+function approvedReportCount(detail: ExperimentResponse) {
+  return detail.result.investment_reports.filter((report) => report.risk_approved).length;
+}
 
 export function WorkflowReports() {
   const [items, setItems] = useState<ExperimentListItem[]>([]);
@@ -39,7 +54,10 @@ export function WorkflowReports() {
     setError(null);
     try {
       const data = await fetchJson<ExperimentResponse>(`/api/experiments/${experimentId}`);
-      setDetail(data);
+      setDetail({
+        ...data,
+        result: normalizeDecisionResponse(data.result) ?? data.result,
+      });
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "보고서 상세를 불러오지 못했습니다.");
     }
@@ -50,8 +68,8 @@ export function WorkflowReports() {
       <section className="hero-panel compact-hero">
         <div>
           <span className="eyebrow">보고서 메뉴</span>
-          <h1>저장된 실험의 과정과 결과를 다시 본다</h1>
-          <p>메인 화면에서 저장한 최근 런이 여기에 쌓이며, 실행 입력과 결과를 함께 확인할 수 있습니다.</p>
+          <h1>주문 전 보고서와 저장된 실행 흐름을 다시 본다</h1>
+          <p>데이터 수집, 분석, 보고서 작성, 최종 판단이 어떻게 이어졌는지 저장된 런 단위로 복기합니다.</p>
         </div>
         <div className="status-card">
           <span>저장 개수</span>
@@ -114,33 +132,97 @@ export function WorkflowReports() {
                   <strong>{runtimeLabel(detail.runtime)}</strong>
                 </div>
                 <div className="summary-card">
-                  <span>심볼</span>
-                  <strong>{detail.result.symbols.join(", ")}</strong>
+                  <span>보고서 승인</span>
+                  <strong>
+                    {approvedReportCount(detail)} / {detail.result.investment_reports.length}
+                  </strong>
                 </div>
                 <div className="summary-card">
                   <span>run_id</span>
                   <strong>{detail.run_id}</strong>
                 </div>
               </div>
+
+              <div className="directive-card report-directive-card">
+                <span>메인 에이전트 요약</span>
+                <strong>{detail.result.supervisor_directive.summary || "요약 없음"}</strong>
+                <small>watch 심볼: {detail.result.supervisor_directive.watch_symbols.join(", ") || "없음"}</small>
+              </div>
+
+              <div className="execution-strip report-execution-strip">
+                <article className="execution-step">
+                  <span>데이터 수집</span>
+                  <strong>{detail.result.market_data.length}</strong>
+                </article>
+                <article className="execution-step">
+                  <span>데이터 분석</span>
+                  <strong>{detail.result.analysis_signals.length}</strong>
+                </article>
+                <article className="execution-step">
+                  <span>보고서 작성</span>
+                  <strong>{detail.result.investment_reports.length}</strong>
+                </article>
+                <article className="execution-step">
+                  <span>주문 계획</span>
+                  <strong>{detail.result.orders.length}</strong>
+                </article>
+              </div>
+
               <div className="report-stack">
                 <section className="report-section">
-                  <h3>입력</h3>
-                  <p>최대 비중 {formatPercent(detail.decision.max_position_weight)}</p>
-                  <small>{detail.decision.mandate?.objective || "mandate 없음"}</small>
-                </section>
-                <section className="report-section">
-                  <h3>프롬프트</h3>
+                  <h3>입력과 제약</h3>
                   <div className="report-grid-text">
-                    {Object.entries(detail.prompt_overrides).map(([key, value]) => (
-                      <article className="output-card" key={key}>
-                        <strong>{key}</strong>
-                        <small>{value || "없음"}</small>
+                    <article className="output-card">
+                      <strong>메인 목표</strong>
+                      <small>{detail.result.user_prompt || detail.decision.mandate?.objective || "없음"}</small>
+                    </article>
+                    <article className="output-card">
+                      <strong>최대 비중</strong>
+                      <small>{formatPercent(detail.decision.max_position_weight)}</small>
+                    </article>
+                    <article className="output-card">
+                      <strong>채팅 지시</strong>
+                      <small>{detail.result.chat_messages.join(" / ") || "없음"}</small>
+                    </article>
+                    <article className="output-card">
+                      <strong>가이드</strong>
+                      <small>{detail.result.supervisor_directive.guidance.join(" / ") || "없음"}</small>
+                    </article>
+                  </div>
+                </section>
+
+                <section className="report-section">
+                  <h3>주문 전 보고서</h3>
+                  <div className="report-preview-grid">
+                    {detail.result.investment_reports.map((report) => (
+                      <article className="report-insight-card" key={report.symbol}>
+                        <div className="report-insight-head">
+                          <div>
+                            <span>{report.symbol}</span>
+                            <strong>{report.risk_approved ? "리스크 승인" : "리스크 보류"}</strong>
+                          </div>
+                          <small>{actionLabel(report.recommended_action_bias)} · {formatScore(report.signal_strength)}</small>
+                        </div>
+                        <p>{report.summary}</p>
+                        <small>최대 비중 {formatPercent(report.max_position_weight)}</small>
+                        <div className="report-points">
+                          <div>
+                            <span>상승 포인트</span>
+                            <small>{report.bull_points.join(" / ") || "없음"}</small>
+                          </div>
+                          <div>
+                            <span>하락 포인트</span>
+                            <small>{report.bear_points.join(" / ") || "없음"}</small>
+                          </div>
+                        </div>
+                        <small className="report-flags">{report.risk_flags.join(" / ") || "리스크 메모 없음"}</small>
                       </article>
                     ))}
                   </div>
                 </section>
+
                 <section className="report-section">
-                  <h3>결과</h3>
+                  <h3>결과와 주문 계획</h3>
                   <div className="report-grid-text">
                     {detail.result.decisions.map((decision) => (
                       <article className="output-card" key={decision.symbol}>
@@ -151,18 +233,18 @@ export function WorkflowReports() {
                         <small>{decision.rationale}</small>
                       </article>
                     ))}
-                    <article className="output-card">
-                      <strong>평가 요약</strong>
-                      <p>
-                        판단 {detail.result.evaluation_log.decision_count} / 주문 {detail.result.evaluation_log.order_count} /
-                        차단 {detail.result.evaluation_log.blocked_order_count}
-                      </p>
-                      <small>{detail.result.evaluation_log.notes.join(" / ")}</small>
-                    </article>
+                    {detail.result.orders.map((order) => (
+                      <article className="output-card" key={`${order.symbol}-${order.action}`}>
+                        <strong>{order.symbol}</strong>
+                        <p>{order.should_submit ? "제출 가능" : "제출 불가"} · 수량 {order.quantity}</p>
+                        <small>{order.reason}</small>
+                      </article>
+                    ))}
                   </div>
                 </section>
+
                 <section className="report-section">
-                  <h3>에이전트 과정</h3>
+                  <h3>수집 데이터</h3>
                   <div className="report-grid-text">
                     {detail.result.market_data.map((item) => (
                       <article className="output-card" key={item.symbol}>

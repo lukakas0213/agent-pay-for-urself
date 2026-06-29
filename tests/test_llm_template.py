@@ -5,7 +5,7 @@ from agent_pay_for_urself.agents import (
     DataCollectionAgent,
     LogEvaluationAgent,
     OrderExecutionAgent,
-    RiskManagementAgent,
+    ReportAgent,
 )
 from agent_pay_for_urself.llm.base import AgentLLMClient, AgentLLMRequest
 from agent_pay_for_urself.llm.openai_client import AGENT_MODEL_ENV_VARS, OpenAIResponsesConfig
@@ -19,6 +19,16 @@ class StaticAgentLLMClient(AgentLLMClient):
 
     def complete(self, request: AgentLLMRequest) -> dict[str, object]:
         self.requests.append(request)
+        if request.agent_name == "main_agent":
+            return {
+                "directive": {
+                    "objective": "LLM supervisor objective",
+                    "focus_symbols": ["AAPL"],
+                    "watch_symbols": ["AAPL"],
+                    "guidance": ["prefer AAPL timing"],
+                    "summary": "llm supervisor summary",
+                }
+            }
         if request.agent_name == "data_collection":
             return {
                 "market_data": [
@@ -42,14 +52,20 @@ class StaticAgentLLMClient(AgentLLMClient):
                     }
                 ]
             }
-        if request.agent_name == "risk_management":
+        if request.agent_name == "report":
             return {
-                "risk_assessments": [
+                "investment_reports": [
                     {
                         "symbol": "AAPL",
-                        "approved": True,
-                        "reasons": ["LLM risk approved"],
+                        "summary": "LLM report summary",
+                        "bull_points": ["LLM upside"],
+                        "bear_points": ["LLM downside"],
+                        "risk_flags": ["LLM risk approved"],
+                        "risk_approved": True,
                         "max_position_weight": 0.2,
+                        "recommended_action_bias": "BUY",
+                        "signal_strength": 0.88,
+                        "rationale": "LLM report result",
                     }
                 ]
             }
@@ -91,6 +107,8 @@ class StaticAgentLLMClient(AgentLLMClient):
 
 class InvalidAgentLLMClient(AgentLLMClient):
     def complete(self, request: AgentLLMRequest) -> dict[str, object]:
+        if request.agent_name == "main_agent":
+            return {"directive": "invalid"}
         return {"analysis_signals": "invalid"}
 
 
@@ -102,24 +120,27 @@ def test_main_agent_can_use_shared_llm_templates_for_all_agents() -> None:
             llm_client=llm_client,
         ),
         data_analysis_agent=DataAnalysisAgent(llm_client=llm_client),
-        risk_management_agent=RiskManagementAgent(llm_client=llm_client),
+        report_agent=ReportAgent(llm_client=llm_client),
         buy_sell_agent=BuySellAgent(llm_client=llm_client),
         order_execution_agent=OrderExecutionAgent(llm_client=llm_client),
         log_evaluation_agent=LogEvaluationAgent(llm_client=llm_client),
+        llm_client=llm_client,
     )
 
     result = agent.run(InvestmentRequest(symbols=("AAPL",), max_position_weight=0.2))
 
+    assert result.supervisor_directive.summary == "llm supervisor summary"
     assert result.market_data[0].latest_price == 111.0
     assert result.analysis_signals[0].rationale == "LLM analysis result"
-    assert result.risk_assessments[0].reasons == ("LLM risk approved",)
+    assert result.investment_reports[0].risk_flags == ("LLM risk approved",)
     assert result.trade_decisions[0].action == "BUY"
     assert result.order_plans[0].quantity == 3
     assert result.evaluation_log.notes == ("AAPL: BUY via llm",)
     assert [request.agent_name for request in llm_client.requests] == [
+        "main_agent",
         "data_collection",
         "data_analysis",
-        "risk_management",
+        "report",
         "buy_sell",
         "order_execution",
         "log_evaluation",
@@ -134,10 +155,11 @@ def test_main_agent_appends_experiment_prompt_overrides_to_llm_requests() -> Non
             llm_client=llm_client,
         ),
         data_analysis_agent=DataAnalysisAgent(llm_client=llm_client),
-        risk_management_agent=RiskManagementAgent(llm_client=llm_client),
+        report_agent=ReportAgent(llm_client=llm_client),
         buy_sell_agent=BuySellAgent(llm_client=llm_client),
         order_execution_agent=OrderExecutionAgent(llm_client=llm_client),
         log_evaluation_agent=LogEvaluationAgent(llm_client=llm_client),
+        llm_client=llm_client,
     )
 
     agent.run(
@@ -145,9 +167,10 @@ def test_main_agent_appends_experiment_prompt_overrides_to_llm_requests() -> Non
             symbols=("AAPL",),
             max_position_weight=0.2,
             prompt_overrides=AgentPromptOverrides(
+                main_agent="supervisor override",
                 data_collection="collect override",
                 data_analysis="analysis override",
-                risk_management="risk override",
+                report="report override",
                 buy_sell="decision override",
                 order_execution="order override",
                 log_evaluation="evaluation override",
@@ -155,12 +178,13 @@ def test_main_agent_appends_experiment_prompt_overrides_to_llm_requests() -> Non
         )
     )
 
-    assert "collect override" in llm_client.requests[0].system_instruction
-    assert "analysis override" in llm_client.requests[1].system_instruction
-    assert "risk override" in llm_client.requests[2].system_instruction
-    assert "decision override" in llm_client.requests[3].system_instruction
-    assert "order override" in llm_client.requests[4].system_instruction
-    assert "evaluation override" in llm_client.requests[5].system_instruction
+    assert "supervisor override" in llm_client.requests[0].system_instruction
+    assert "collect override" in llm_client.requests[1].system_instruction
+    assert "analysis override" in llm_client.requests[2].system_instruction
+    assert "report override" in llm_client.requests[3].system_instruction
+    assert "decision override" in llm_client.requests[4].system_instruction
+    assert "order override" in llm_client.requests[5].system_instruction
+    assert "evaluation override" in llm_client.requests[6].system_instruction
 
 
 def test_data_analysis_agent_falls_back_when_llm_payload_is_invalid() -> None:
@@ -172,6 +196,22 @@ def test_data_analysis_agent_falls_back_when_llm_payload_is_invalid() -> None:
     assert result[0].rationale
 
 
+def test_main_agent_falls_back_when_supervisor_payload_is_invalid() -> None:
+    llm_client = InvalidAgentLLMClient()
+    agent = MainAgent(llm_client=llm_client)
+
+    result = agent.run(
+        InvestmentRequest(
+            symbols=("MSFT",),
+            max_position_weight=0.2,
+            chat_messages=("애플을 지켜봐",),
+        )
+    )
+
+    assert result.supervisor_directive.watch_symbols == ("AAPL",)
+    assert result.request.symbols == ("MSFT", "AAPL")
+
+
 def test_openai_responses_config_uses_agent_specific_model_env_vars(monkeypatch) -> None:
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_MODEL", raising=False)
@@ -180,6 +220,7 @@ def test_openai_responses_config_uses_agent_specific_model_env_vars(monkeypatch)
         monkeypatch.delenv(env_var, raising=False)
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     monkeypatch.setenv("OPENAI_MODEL", "gpt-5.5")
+    monkeypatch.setenv("OPENAI_MAIN_AGENT_MODEL", "gpt-5.5")
     monkeypatch.setenv("OPENAI_DATA_COLLECTION_MODEL", "gpt-5.4-mini")
     monkeypatch.setenv("OPENAI_ORDER_EXECUTION_MODEL", "gpt-5.4-mini")
 
@@ -187,8 +228,9 @@ def test_openai_responses_config_uses_agent_specific_model_env_vars(monkeypatch)
 
     assert config is not None
     assert config.default_model == "gpt-5.5"
+    assert config.model_for_agent("main_agent") == "gpt-5.5"
     assert config.model_for_agent("data_collection") == "gpt-5.4-mini"
     assert config.model_for_agent("data_analysis") == "gpt-5.5"
     assert config.model_for_agent("order_execution") == "gpt-5.4-mini"
     assert config.agent_models is not None
-    assert config.agent_models["risk_management"] == "gpt-5.5"
+    assert config.agent_models["report"] == "gpt-5.5"

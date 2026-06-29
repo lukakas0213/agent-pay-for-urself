@@ -5,12 +5,13 @@ from agent_pay_for_urself.api.models import (
     DecisionItem,
     DecisionResponse,
     EvaluationLogItem,
+    InvestmentReportItem,
     MandateItem,
     MandateViolationItem,
     MarketDataItem,
     OrderItem,
-    RiskAssessmentItem,
     RuntimeSummaryItem,
+    SupervisorDirectiveItem,
 )
 from agent_pay_for_urself.schemas import MarketData, WorkflowResult
 
@@ -37,6 +38,8 @@ def to_decision_response(
     return DecisionResponse(
         run_id=run_id,
         symbols=list(result.request.symbols),
+        user_prompt=result.request.user_prompt,
+        chat_messages=list(result.request.chat_messages),
         runtime=runtime,
         mandate=MandateItem(
             objective=result.mandate.objective,
@@ -48,6 +51,13 @@ def to_decision_response(
             risk_tolerance=result.mandate.risk_tolerance,
             requires_approval_for_live_orders=result.mandate.requires_approval_for_live_orders,
             user_notes=result.mandate.user_notes,
+        ),
+        supervisor_directive=SupervisorDirectiveItem(
+            objective=result.supervisor_directive.objective,
+            focus_symbols=list(result.supervisor_directive.focus_symbols),
+            watch_symbols=list(result.supervisor_directive.watch_symbols),
+            guidance=list(result.supervisor_directive.guidance),
+            summary=result.supervisor_directive.summary,
         ),
         market_data=[to_market_data_item(data) for data in result.market_data],
         analysis_signals=[
@@ -61,14 +71,20 @@ def to_decision_response(
             )
             for signal in result.analysis_signals
         ],
-        risk_assessments=[
-            RiskAssessmentItem(
-                symbol=risk.symbol,
-                approved=risk.approved,
-                reasons=list(risk.reasons),
-                max_position_weight=risk.max_position_weight,
+        investment_reports=[
+            InvestmentReportItem(
+                symbol=report.symbol,
+                summary=report.summary,
+                bull_points=list(report.bull_points),
+                bear_points=list(report.bear_points),
+                risk_flags=list(report.risk_flags),
+                risk_approved=report.risk_approved,
+                max_position_weight=report.max_position_weight,
+                recommended_action_bias=report.recommended_action_bias,
+                signal_strength=report.signal_strength,
+                rationale=report.rationale,
             )
-            for risk in result.risk_assessments
+            for report in result.investment_reports
         ],
         decisions=[
             DecisionItem(

@@ -6,7 +6,7 @@
 * Live market data can now be enabled through a Yahoo Finance provider, and a Korea Investment mock broker adapter can be configured for overseas paper-trading submission while durable persistent storage remains unwired.
 * Workflow results are currently stored only in an in-memory repository so console follow-up requests can resolve a prior run by `run_id`.
 * Each workflow agent can optionally route through a shared LLM template layer backed by OpenAI Responses API, and the runtime can assign a different model per agent.
-* `MainAgent` owns the user mandate for each run and enforces it through `PolicyGuardrail`.
+* `MainAgent` owns the user mandate for each run, interprets the primary user prompt and follow-up chat through the shared LLM layer when enabled, and enforces the resulting operating boundary through `PolicyGuardrail`.
 * The FastAPI layer configures a shared console handler for the `agent_pay_for_urself` namespace so request start/completion and workflow/order completion logs are visible in the CLI.
 * If `OPENAI_API_KEY` is not configured, the workflow falls back to deterministic in-process logic and does not call an external LLM.
 
@@ -71,23 +71,23 @@ flowchart LR
 * `agent_pay_for_urself/api/models/` contains public Pydantic request and response models, including optional mandate input and mandate violation output.
 * `agent_pay_for_urself/api/mappers/` converts internal workflow dataclasses into API responses.
 * `agent_pay_for_urself/api/services/` contains API-facing workflow and console assistant logic.
-* `/console/interactions` is the primary console-assistant endpoint.
+* `/console/interactions` is the primary console-assistant endpoint and can optionally append a follow-up natural-language instruction to a stored run before rerunning the workflow.
 * `/experiments` runs and stores Web UI experiment-lab requests with experiment metadata, decision input, prompt overrides, runtime summary, and workflow result.
 * `/agent/interactions` remains as a deprecated compatibility alias.
 * The frontend is built as a static export for Cloudflare Pages. Local development keeps the `/api/:path*` rewrite, while production requests use the build-time `NEXT_PUBLIC_API_BASE_URL` value.
 
 ## Implementation Notes
 
-* `MainAgent` is the only component that coordinates other agents.
+* `MainAgent` is the only component that coordinates other agents and it now combines two internal roles: LLM-based user-intent interpretation plus code-based workflow orchestration.
 * The current runtime is still a sequential Python orchestrator. `langgraph` is installed as a dependency, but the workflow has not yet been migrated to a compiled LangGraph runtime.
 * The current workflow order is collection -> analysis -> risk assessment -> buy/sell decision -> order planning -> evaluation.
 * Agent outputs use structured dataclasses in `agent_pay_for_urself.schemas`.
-* `InvestmentMandate` captures the user-owned operating boundary for a run.
+* `InvestmentMandate` captures the user-owned operating boundary for a run, while `SupervisorDirective` captures the main agent's structured interpretation of `user_prompt` and `chat_messages` for the current cycle.
 * `PolicyGuardrail` clamps decisions and order plans that violate allowed or excluded symbols before evaluation logging.
 * `agent_pay_for_urself/llm/` contains the shared OpenAI client, JSON payload helpers, schema parsing helpers, and the per-agent model routing table used by LLM-enabled agents.
 * `DataCollectionAgent` depends on a `MarketDataProvider` boundary; `StubMarketDataProvider` remains the deterministic default and `YahooFinanceMarketDataProvider` can be selected with `MARKET_DATA_PROVIDER=yahoo`.
 * `OrderExecutionAgent` currently creates order plans only; explicit live broker submission is exposed through the `orders` API routes and the shared `BrokerAdapter` boundary. The default implementation is `NoopBrokerAdapter`, and `KisMockBrokerAdapter` can be configured for paper trading.
-* `DecisionWorkflowService` stores `WorkflowResult` values in `InMemoryWorkflowRunRepository`, returns a `run_id` to the API caller, and reports runtime mode metadata for decision responses.
+* `DecisionWorkflowService` stores `WorkflowResult` values in `InMemoryWorkflowRunRepository`, returns a `run_id` to the API caller, reports runtime mode metadata for decision responses, and can rerun a stored workflow with an appended follow-up message.
 * `ExperimentService` runs the same orchestrator with optional `AgentPromptOverrides`, stores the run in the in-memory workflow repository, and persists the public experiment payload in `JsonFileExperimentRepository`.
 * Real data providers, durable repositories, and broker adapters should be added behind these explicit interfaces.
 * The first broker adapter should target `Korea Investment & Securities Open API`.
@@ -121,7 +121,7 @@ flowchart LR
 * Status: `Shared template implemented with experiment prompt overrides`
 * Runtime source: `OpenAIResponsesClient` or `NoopAgentLLMClient`
 * Default model: `gpt-5.5`
-* Per-agent model contract: `OPENAI_DATA_COLLECTION_MODEL`, `OPENAI_DATA_ANALYSIS_MODEL`, `OPENAI_RISK_MANAGEMENT_MODEL`, `OPENAI_BUY_SELL_MODEL`, `OPENAI_ORDER_EXECUTION_MODEL`, and `OPENAI_LOG_EVALUATION_MODEL` can override the default model per agent
+* Per-agent model contract: `OPENAI_MAIN_AGENT_MODEL`, `OPENAI_DATA_COLLECTION_MODEL`, `OPENAI_DATA_ANALYSIS_MODEL`, `OPENAI_RISK_MANAGEMENT_MODEL`, `OPENAI_BUY_SELL_MODEL`, `OPENAI_ORDER_EXECUTION_MODEL`, and `OPENAI_LOG_EVALUATION_MODEL` can override the default model per agent
 * Per-agent prompt contract: Web experiment overrides are appended as run-specific guidance and cannot replace the schema-preserving base instruction.
 
 ### Policy Guardrail

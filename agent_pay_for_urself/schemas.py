@@ -11,9 +11,10 @@ RiskTolerance = Literal["low", "medium", "high"]
 class AgentPromptOverrides:
     """Optional per-agent experiment instructions appended to default prompts."""
 
+    main_agent: str = ""
     data_collection: str = ""
     data_analysis: str = ""
-    risk_management: str = ""
+    report: str = ""
     buy_sell: str = ""
     order_execution: str = ""
     log_evaluation: str = ""
@@ -50,7 +51,20 @@ class InvestmentRequest:
     symbols: tuple[str, ...]
     max_position_weight: float = 0.2
     mandate: InvestmentMandate | None = None
+    user_prompt: str = ""
+    chat_messages: tuple[str, ...] = field(default_factory=tuple)
     prompt_overrides: AgentPromptOverrides = field(default_factory=AgentPromptOverrides)
+
+
+@dataclass(frozen=True)
+class SupervisorDirective:
+    """Main-agent interpretation of user natural language before code orchestration."""
+
+    objective: str
+    focus_symbols: tuple[str, ...] = field(default_factory=tuple)
+    watch_symbols: tuple[str, ...] = field(default_factory=tuple)
+    guidance: tuple[str, ...] = field(default_factory=tuple)
+    summary: str = ""
 
 
 @dataclass(frozen=True)
@@ -66,7 +80,7 @@ class MarketData:
 
 @dataclass(frozen=True)
 class AnalysisSignal:
-    """Analysis output used by downstream decision and risk agents."""
+    """Analysis output used by downstream decision and report agents."""
 
     symbol: str
     price_score: float
@@ -80,13 +94,19 @@ class AnalysisSignal:
 
 
 @dataclass(frozen=True)
-class RiskAssessment:
-    """Risk validation result for a potential trade."""
+class InvestmentReport:
+    """Structured report that combines analysis summary and pre-trade risk review."""
 
     symbol: str
-    approved: bool
-    reasons: tuple[str, ...]
+    summary: str
+    bull_points: tuple[str, ...]
+    bear_points: tuple[str, ...]
+    risk_flags: tuple[str, ...]
+    risk_approved: bool
     max_position_weight: float
+    recommended_action_bias: TradeAction
+    signal_strength: float
+    rationale: str
 
 
 @dataclass(frozen=True)
@@ -129,9 +149,10 @@ class WorkflowResult:
 
     request: InvestmentRequest
     mandate: InvestmentMandate
+    supervisor_directive: SupervisorDirective
     market_data: tuple[MarketData, ...]
     analysis_signals: tuple[AnalysisSignal, ...]
-    risk_assessments: tuple[RiskAssessment, ...]
+    investment_reports: tuple[InvestmentReport, ...]
     trade_decisions: tuple[TradeDecision, ...]
     order_plans: tuple[OrderPlan, ...]
     evaluation_log: EvaluationLog

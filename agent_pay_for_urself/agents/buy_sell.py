@@ -3,18 +3,16 @@
 from agent_pay_for_urself.agents.base import LLMEnabledAgent
 from agent_pay_for_urself.llm import AgentLLMClient, to_json_object
 from agent_pay_for_urself.llm.serde import parse_trade_decisions
-from agent_pay_for_urself.schemas import AnalysisSignal, RiskAssessment, TradeDecision
+from agent_pay_for_urself.schemas import InvestmentReport, TradeDecision
 
-BUY_THRESHOLD = 0.6
-SELL_THRESHOLD = 0.35
 BUY_SELL_LLM_INSTRUCTION = (
     "You are the buy/sell decision agent in an investment workflow. Return JSON only. "
-    "Preserve the trade_decisions schema and align decisions with the supplied risk results."
+    "Preserve the trade_decisions schema and align decisions with the supplied reports."
 )
 
 
 class BuySellAgent(LLMEnabledAgent):
-    """Creates explainable buy, sell, or hold decisions."""
+    """Creates explainable buy, sell, or hold decisions from report outputs."""
 
     name = "buy_sell"
 
@@ -23,21 +21,16 @@ class BuySellAgent(LLMEnabledAgent):
 
     def decide(
         self,
-        signals: tuple[AnalysisSignal, ...],
-        risks: tuple[RiskAssessment, ...],
+        reports: tuple[InvestmentReport, ...],
         prompt_override: str = "",
     ) -> tuple[TradeDecision, ...]:
-        risk_by_symbol = {risk.symbol: risk for risk in risks}
-        fallback = tuple(
-            self._decide_symbol(signal, risk_by_symbol[signal.symbol]) for signal in signals
-        )
+        fallback = tuple(self._decide_symbol(report) for report in reports)
         payload = self._resolve_llm_payload(
             operation_name="decide",
             input_payload={
-                "analysis_signals": to_json_object({"analysis_signals": signals})[
-                    "analysis_signals"
+                "investment_reports": to_json_object({"investment_reports": reports})[
+                    "investment_reports"
                 ],
-                "risk_assessments": to_json_object({"risk_assessments": risks})["risk_assessments"],
             },
             fallback_payload={
                 "trade_decisions": to_json_object({"trade_decisions": fallback})["trade_decisions"]
@@ -50,27 +43,22 @@ class BuySellAgent(LLMEnabledAgent):
         except (KeyError, TypeError, ValueError):
             return fallback
 
-    def _decide_symbol(self, signal: AnalysisSignal, risk: RiskAssessment) -> TradeDecision:
-        if not risk.approved:
+    def _decide_symbol(self, report: InvestmentReport) -> TradeDecision:
+        if not report.risk_approved:
             return TradeDecision(
-                symbol=signal.symbol,
+                symbol=report.symbol,
                 action="HOLD",
                 confidence=0.0,
-                rationale=f"Risk validation failed: {'; '.join(risk.reasons)}",
+                rationale=(
+                    f"Report risk review failed: {'; '.join(report.risk_flags)}. {report.summary}"
+                ),
                 risk_approved=False,
             )
 
-        if signal.total_score >= BUY_THRESHOLD:
-            action = "BUY"
-        elif signal.total_score <= SELL_THRESHOLD:
-            action = "SELL"
-        else:
-            action = "HOLD"
-
         return TradeDecision(
-            symbol=signal.symbol,
-            action=action,
-            confidence=round(signal.total_score, 4),
-            rationale=signal.rationale,
+            symbol=report.symbol,
+            action=report.recommended_action_bias,
+            confidence=report.signal_strength,
+            rationale=report.rationale,
             risk_approved=True,
         )

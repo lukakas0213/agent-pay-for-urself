@@ -42,13 +42,52 @@ class DecisionWorkflowService:
         symbols: list[str],
         max_position_weight: float,
         mandate: InvestmentMandate | None = None,
+        user_prompt: str = "",
+        chat_messages: list[str] | None = None,
     ) -> tuple[str, WorkflowResult]:
-        request = InvestmentRequest(
+        request = self._build_request(
+            symbols=symbols,
+            max_position_weight=max_position_weight,
+            mandate=mandate,
+            user_prompt=user_prompt,
+            chat_messages=chat_messages or [],
+        )
+        return self._run_request(request)
+
+    def rerun_with_message(self, run_id: str, message: str) -> tuple[str, WorkflowResult]:
+        previous_result = self.get(run_id)
+        if previous_result is None:
+            raise KeyError(run_id)
+        request = self._build_request(
+            symbols=list(previous_result.request.symbols),
+            max_position_weight=previous_result.mandate.max_position_weight,
+            mandate=previous_result.mandate,
+            user_prompt=previous_result.request.user_prompt,
+            chat_messages=[*previous_result.request.chat_messages, message],
+        )
+        return self._run_request(request)
+
+    def get(self, run_id: str) -> WorkflowResult | None:
+        return self._workflow_run_repository.get(run_id)
+
+    def _build_request(
+        self,
+        symbols: list[str],
+        max_position_weight: float,
+        mandate: InvestmentMandate | None,
+        user_prompt: str,
+        chat_messages: list[str],
+    ) -> InvestmentRequest:
+        return InvestmentRequest(
             symbols=tuple(symbols),
             max_position_weight=max_position_weight,
             mandate=mandate,
+            user_prompt=user_prompt,
+            chat_messages=tuple(chat_messages),
             prompt_overrides=self._resolve_prompt_overrides(),
         )
+
+    def _run_request(self, request: InvestmentRequest) -> tuple[str, WorkflowResult]:
         result = self._main_agent.run(request)
         run_id = self._workflow_run_repository.save(result)
         logger.info(
@@ -61,10 +100,7 @@ class DecisionWorkflowService:
         )
         return run_id, result
 
-    def get(self, run_id: str) -> WorkflowResult | None:
-        return self._workflow_run_repository.get(run_id)
-
-    def _resolve_prompt_overrides(self):
+    def _resolve_prompt_overrides(self) -> AgentPromptOverrides:
         if self._agent_prompt_service is None:
             return AgentPromptOverrides()
         return self._agent_prompt_service.resolve_prompt_overrides(AgentPromptOverrides())

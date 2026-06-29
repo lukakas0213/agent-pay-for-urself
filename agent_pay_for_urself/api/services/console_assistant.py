@@ -10,6 +10,9 @@ class ConsoleAssistantService:
         self,
         message: str,
         current_result: DecisionResponse | None,
+        *,
+        applied_to_workflow: bool = False,
+        updated_run_id: str | None = None,
     ) -> AgentInteractionResponse:
         normalized_message = message.strip().lower()
 
@@ -18,27 +21,51 @@ class ConsoleAssistantService:
                 focus="analysis_required",
                 reply=(
                     "아직 분석 결과가 없습니다. 먼저 종목과 최대 비중을 입력하고 분석을 실행하면, "
-                    "그 결과를 기준으로 판단 근거와 리스크를 설명할 수 있습니다."
+                    "그 결과를 기준으로 판단 근거와 보고서 리스크를 설명할 수 있습니다."
                 ),
-                suggested_actions=["종목 입력", "분석 실행", "리스크 기준 확인"],
+                suggested_actions=["종목 입력", "분석 실행", "보고서 기준 확인"],
+                applied_to_workflow=applied_to_workflow,
+                updated_run_id=updated_run_id,
+                updated_result=current_result,
+            )
+
+        if applied_to_workflow:
+            watch_text = ", ".join(current_result.supervisor_directive.watch_symbols) or "없음"
+            return AgentInteractionResponse(
+                focus="workflow_update",
+                reply=(
+                    f"메시지를 메인 에이전트 입력에 반영해 워크플로우를 다시 실행했습니다. "
+                    f"현재 watch 심볼은 {watch_text}이고, "
+                    f"주요 요약은 {current_result.supervisor_directive.summary or '없음'}입니다."
+                ),
+                suggested_actions=["업데이트된 판단 확인", "보고서 사유 확인", "추가 지시 입력"],
+                applied_to_workflow=True,
+                updated_run_id=updated_run_id,
+                updated_result=current_result,
             )
 
         if any(
-            keyword in normalized_message for keyword in ("리스크", "risk", "위험", "거절", "승인")
+            keyword in normalized_message
+            for keyword in ("리스크", "risk", "위험", "거절", "승인", "보고서")
         ):
-            approved_count = sum(1 for risk in current_result.risk_assessments if risk.approved)
+            approved_count = sum(
+                1 for report in current_result.investment_reports if report.risk_approved
+            )
             rejected = [
-                risk.symbol for risk in current_result.risk_assessments if not risk.approved
+                report.symbol
+                for report in current_result.investment_reports
+                if not report.risk_approved
             ]
             rejected_text = ", ".join(rejected) if rejected else "없음"
             return AgentInteractionResponse(
-                focus="risk",
+                focus="report",
                 reply=(
-                    f"리스크 관리 에이전트는 {len(current_result.risk_assessments)}개 종목 중 "
-                    f"{approved_count}개를 승인했습니다. 거절된 종목은 {rejected_text}입니다. "
-                    "현재 기준은 종목별 최대 비중과 분석 근거 유무를 중심으로 확인합니다."
+                    f"보고서 에이전트는 {len(current_result.investment_reports)}개 종목 중 "
+                    f"{approved_count}개를 리스크 승인했습니다. "
+                    f"거절된 종목은 {rejected_text}입니다. "
+                    "현재 기준은 종목별 최대 비중, 분석 근거, 데이터 결손 여부를 함께 요약합니다."
                 ),
-                suggested_actions=["최대 비중 조정", "리스크 탭 확인", "분석 재실행"],
+                suggested_actions=["보고서 탭 확인", "최대 비중 조정", "분석 재실행"],
             )
 
         if any(
@@ -75,10 +102,14 @@ class ConsoleAssistantService:
                 focus="decision",
                 reply=(
                     f"매수/매도 판단 에이전트의 현재 결론은 {decisions}입니다. "
-                    "판단은 분석 점수와 리스크 승인 여부를 함께 반영합니다. "
-                    "리스크가 승인되지 않으면 HOLD로 제한됩니다."
+                    "판단은 분석 결과를 요약한 보고서와 그 안의 리스크 승인 여부를 "
+                    "함께 반영합니다. 보고서 리스크가 승인되지 않으면 HOLD로 제한됩니다."
                 ),
-                suggested_actions=["매수/매도 판단 탭 확인", "분석 점수 비교", "리스크 사유 확인"],
+                suggested_actions=[
+                    "매수/매도 판단 탭 확인",
+                    "보고서 근거 비교",
+                    "리스크 사유 확인",
+                ],
             )
 
         if any(
@@ -91,7 +122,7 @@ class ConsoleAssistantService:
             return AgentInteractionResponse(
                 focus="collection",
                 reply=(
-                    "데이터 수집 에이전트는 현재 stub provider에서 "
+                    "데이터 수집 에이전트는 현재 configured provider에서 "
                     f"{collected} 데이터를 받았습니다. "
                     "뉴스 헤드라인과 재무 지표는 데이터 수집 탭에서 종목별로 확인할 수 있습니다."
                 ),
@@ -109,9 +140,11 @@ class ConsoleAssistantService:
             focus="summary",
             reply=(
                 f"현재 워크플로우는 {len(current_result.symbols)}개 종목을 처리했고 결론은 "
-                f"{summary}입니다. 주문 계획은 {current_result.evaluation_log.order_count}개이며, "
-                "차단된 주문 계획은 "
+                f"{summary}입니다. 메인 에이전트 요약은 "
+                f"{current_result.supervisor_directive.summary or '없음'}입니다. "
+                f"주문 계획은 {current_result.evaluation_log.order_count}개이며, "
+                f"차단된 주문 계획은 "
                 f"{current_result.evaluation_log.blocked_order_count}개입니다."
             ),
-            suggested_actions=["에이전트 모니터 확인", "리스크 기준 조정", "다른 종목 분석"],
+            suggested_actions=["에이전트 모니터 확인", "보고서 기준 조정", "다른 종목 분석"],
         )

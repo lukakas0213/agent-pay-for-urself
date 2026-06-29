@@ -78,20 +78,23 @@ def test_main_agent_runs_minimum_workflow() -> None:
     result = MainAgent().run(request)
 
     assert [data.symbol for data in result.market_data] == ["AAPL", "MSFT"]
+    assert result.supervisor_directive.focus_symbols == ("AAPL", "MSFT")
     assert len(result.analysis_signals) == 2
-    assert len(result.risk_assessments) == 2
+    assert len(result.investment_reports) == 2
     assert len(result.trade_decisions) == 2
     assert len(result.order_plans) == 2
     assert result.evaluation_log.decision_count == 2
 
 
-def test_order_plan_requires_risk_approval() -> None:
+def test_order_plan_requires_report_risk_approval() -> None:
     request = InvestmentRequest(symbols=("AAPL",), max_position_weight=0.0)
 
     result = MainAgent().run(request)
 
+    report = result.investment_reports[0]
     decision = result.trade_decisions[0]
     order = result.order_plans[0]
+    assert report.risk_approved is False
     assert decision.action == "HOLD"
     assert decision.risk_approved is False
     assert order.should_submit is False
@@ -124,6 +127,7 @@ def test_main_agent_preserves_canonical_symbol_for_yahoo_korean_ticker() -> None
     assert requested_symbols == ["005930.KS"]
     assert [data.symbol for data in result.market_data] == ["005930"]
     assert [signal.symbol for signal in result.analysis_signals] == ["005930"]
+    assert [report.symbol for report in result.investment_reports] == ["005930"]
     assert [decision.symbol for decision in result.trade_decisions] == ["005930"]
     assert [order.symbol for order in result.order_plans] == ["005930"]
     assert result.market_data[0].latest_price == 123.45
@@ -177,3 +181,20 @@ def test_main_agent_blocks_symbols_outside_user_mandate() -> None:
     assert result.trade_decisions[0].action == "HOLD"
     assert result.trade_decisions[0].risk_approved is False
     assert result.order_plans[0].should_submit is False
+
+
+def test_main_agent_interprets_natural_language_and_expands_focus_symbols() -> None:
+    request = InvestmentRequest(
+        symbols=("MSFT",),
+        max_position_weight=0.2,
+        user_prompt="장기적으로 수익을 낼 수 있는 전략과 종목을 중심으로 운용하라.",
+        chat_messages=("애플이 요즘 심상치 않으니 좋은 타이밍에 들어가라",),
+    )
+
+    result = MainAgent().run(request)
+
+    assert result.mandate.objective == request.user_prompt
+    assert result.supervisor_directive.watch_symbols == ("AAPL",)
+    assert result.supervisor_directive.focus_symbols == ("MSFT", "AAPL")
+    assert result.request.symbols == ("MSFT", "AAPL")
+    assert "watch=AAPL" in result.supervisor_directive.summary

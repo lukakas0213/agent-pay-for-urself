@@ -33,8 +33,6 @@ from agent_pay_for_urself.schemas import (
 
 
 class ExperimentService:
-    """Runs saved experiments without changing the public decision endpoint."""
-
     def __init__(
         self,
         main_agent: MainAgent,
@@ -77,6 +75,7 @@ class ExperimentService:
         result = self._workflow_run_repository.get(request.run_id)
         if result is None:
             raise LookupError(f"workflow run not found: {request.run_id}")
+        result = self._apply_experiment_safety(result)
         response = self._build_response_from_result(
             request.name, request.description, request.run_id, result
         )
@@ -210,7 +209,7 @@ class ExperimentService:
         return AgentPromptOverrides(
             data_collection=request.data_collection,
             data_analysis=request.data_analysis,
-            risk_management=request.risk_management,
+            report=request.report,
             buy_sell=request.buy_sell,
             order_execution=request.order_execution,
             log_evaluation=request.log_evaluation,
@@ -225,7 +224,7 @@ class ExperimentService:
         return AgentPromptOverridesRequest(
             data_collection=request.data_collection,
             data_analysis=request.data_analysis,
-            risk_management=request.risk_management,
+            report=request.report,
             buy_sell=request.buy_sell,
             order_execution=request.order_execution,
             log_evaluation=request.log_evaluation,
@@ -241,48 +240,23 @@ class ExperimentService:
             AgentPromptOverrides()
         )
         return AgentPromptOverrides(
-            data_collection=self._merge_prompt_text(
-                stored_overrides.data_collection,
-                request_overrides.data_collection,
-            ),
-            data_analysis=self._merge_prompt_text(
-                stored_overrides.data_analysis,
-                request_overrides.data_analysis,
-            ),
-            risk_management=self._merge_prompt_text(
-                stored_overrides.risk_management,
-                request_overrides.risk_management,
-            ),
-            buy_sell=self._merge_prompt_text(
-                stored_overrides.buy_sell,
-                request_overrides.buy_sell,
-            ),
-            order_execution=self._merge_prompt_text(
-                stored_overrides.order_execution,
-                request_overrides.order_execution,
-            ),
-            log_evaluation=self._merge_prompt_text(
-                stored_overrides.log_evaluation,
-                request_overrides.log_evaluation,
-            ),
+            data_collection=request_overrides.data_collection or stored_overrides.data_collection,
+            data_analysis=request_overrides.data_analysis or stored_overrides.data_analysis,
+            report=request_overrides.report or stored_overrides.report,
+            buy_sell=request_overrides.buy_sell or stored_overrides.buy_sell,
+            order_execution=request_overrides.order_execution or stored_overrides.order_execution,
+            log_evaluation=request_overrides.log_evaluation or stored_overrides.log_evaluation,
         )
 
-    def _merge_prompt_text(self, base_prompt: str, override_prompt: str) -> str:
-        base = base_prompt.strip()
-        override = override_prompt.strip()
-        if not base:
-            return override
-        if not override:
-            return base
-        return f"{base}\n\n{override}"
-
     def _to_list_item(self, payload: dict[str, object]) -> ExperimentListItem:
-        result = payload.get("result")
-        decisions = result.get("decisions", []) if isinstance(result, dict) else []
+        result = payload.get("result") if isinstance(payload, dict) else None
+        if not isinstance(result, dict):
+            raise ValueError("Experiment payload must include a result object.")
+        decisions = result.get("decisions", [])
         decision_actions = {
-            str(decision.get("symbol")): decision.get("action")
-            for decision in decisions
-            if isinstance(decision, dict)
+            str(item.get("symbol")): str(item.get("action"))
+            for item in decisions
+            if isinstance(item, dict) and item.get("symbol") and item.get("action")
         }
         return ExperimentListItem.model_validate(
             {
@@ -291,7 +265,7 @@ class ExperimentService:
                 "name": payload.get("name"),
                 "description": payload.get("description", ""),
                 "created_at": payload.get("created_at"),
-                "symbols": result.get("symbols", []) if isinstance(result, dict) else [],
+                "symbols": result.get("symbols", []),
                 "decision_actions": decision_actions,
                 "runtime": payload.get("runtime"),
             }

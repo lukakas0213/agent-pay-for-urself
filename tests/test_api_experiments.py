@@ -7,7 +7,7 @@ from agent_pay_for_urself.agents import (
     DataCollectionAgent,
     LogEvaluationAgent,
     OrderExecutionAgent,
-    RiskManagementAgent,
+    ReportAgent,
 )
 from agent_pay_for_urself.api.dependencies import get_experiment_service
 from agent_pay_for_urself.api.main import app
@@ -18,6 +18,7 @@ from agent_pay_for_urself.repositories import (
     InMemoryWorkflowRunRepository,
     JsonFileExperimentRepository,
 )
+from agent_pay_for_urself.schemas import InvestmentRequest
 
 
 class PositiveAgentLLMClient(AgentLLMClient):
@@ -31,6 +32,23 @@ class PositiveAgentLLMClient(AgentLLMClient):
                         "news_score": 0.9,
                         "financial_score": 0.9,
                         "rationale": "positive test signal",
+                    }
+                ]
+            }
+        if request.agent_name == "report":
+            return {
+                "investment_reports": [
+                    {
+                        "symbol": "AAPL",
+                        "summary": "positive report",
+                        "bull_points": ["strong momentum"],
+                        "bear_points": ["limited downside noted"],
+                        "risk_flags": ["risk rules passed"],
+                        "risk_approved": True,
+                        "max_position_weight": 0.2,
+                        "recommended_action_bias": "BUY",
+                        "signal_strength": 0.9,
+                        "rationale": "positive test report",
                     }
                 ]
             }
@@ -69,10 +87,11 @@ def _main_agent_with_llm(llm_client: AgentLLMClient) -> MainAgent:
             llm_client=llm_client,
         ),
         data_analysis_agent=DataAnalysisAgent(llm_client=llm_client),
-        risk_management_agent=RiskManagementAgent(llm_client=llm_client),
+        report_agent=ReportAgent(llm_client=llm_client),
         buy_sell_agent=BuySellAgent(llm_client=llm_client),
         order_execution_agent=OrderExecutionAgent(llm_client=llm_client),
         log_evaluation_agent=LogEvaluationAgent(llm_client=llm_client),
+        llm_client=llm_client,
     )
 
 
@@ -80,6 +99,7 @@ def _override_experiment_service(
     store_path,
     live_order_enabled=False,
     llm_client: AgentLLMClient | None = None,
+    workflow_run_repository: InMemoryWorkflowRunRepository | None = None,
 ):
     provider = StubMarketDataProvider()
     selected_llm_client = llm_client or NoopAgentLLMClient()
@@ -88,7 +108,7 @@ def _override_experiment_service(
     )
     return ExperimentService(
         main_agent=main_agent,
-        workflow_run_repository=InMemoryWorkflowRunRepository(),
+        workflow_run_repository=workflow_run_repository or InMemoryWorkflowRunRepository(),
         experiment_repository=JsonFileExperimentRepository(store_path),
         market_data_provider=provider,
         llm_client=selected_llm_client,
@@ -106,9 +126,9 @@ def test_create_experiment_runs_saves_and_lists_history(tmp_path) -> None:
         "/experiments",
         json={
             "name": "Conservative prompt test",
-            "description": "Check risk-first behavior.",
+            "description": "Check report-first behavior.",
             "decision": {"symbols": ["AAPL"], "max_position_weight": 0.2},
-            "prompt_overrides": {"risk_management": "Prefer explicit downside notes."},
+            "prompt_overrides": {"report": "Prefer explicit downside notes."},
         },
     )
 
@@ -117,7 +137,7 @@ def test_create_experiment_runs_saves_and_lists_history(tmp_path) -> None:
     assert payload["experiment_id"]
     assert payload["run_id"] == payload["result"]["run_id"]
     assert payload["name"] == "Conservative prompt test"
-    assert payload["prompt_overrides"]["risk_management"] == "Prefer explicit downside notes."
+    assert payload["prompt_overrides"]["report"] == "Prefer explicit downside notes."
     assert payload["runtime"]["data_mode"] == "stub"
     assert payload["runtime"]["llm_mode"] == "fallback"
     assert payload["runtime"]["live_order_enabled"] is False
@@ -168,6 +188,38 @@ def test_save_existing_run_creates_a_second_report_entry(tmp_path) -> None:
     history = client.get("/experiments").json()
     assert len(history) == 2
     assert {item["name"] for item in history} == {"First run", "Saved run"}
+    app.dependency_overrides.clear()
+
+
+def test_save_existing_run_blocks_submittable_orders_when_live_orders_are_disabled(
+    tmp_path,
+) -> None:
+    workflow_run_repository = InMemoryWorkflowRunRepository()
+    llm_client = PositiveAgentLLMClient()
+    run_id = workflow_run_repository.save(
+        _main_agent_with_llm(llm_client).run(
+            InvestmentRequest(symbols=("AAPL",), max_position_weight=0.2)
+        )
+    )
+    app.dependency_overrides[get_experiment_service] = lambda: _override_experiment_service(
+        tmp_path / "experiments.json",
+        live_order_enabled=False,
+        llm_client=llm_client,
+        workflow_run_repository=workflow_run_repository,
+    )
+    client = TestClient(app)
+
+    response = client.post(
+        "/experiments/from-run",
+        json={"run_id": run_id, "name": "Saved run", "description": "Saved from main page."},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert all(order["should_submit"] is False for order in payload["result"]["orders"])
+    assert payload["result"]["evaluation_log"]["blocked_order_count"] == len(
+        payload["result"]["orders"]
+    )
     app.dependency_overrides.clear()
 
 

@@ -85,6 +85,13 @@ class DirectOrderSubmitRequest(BaseModel):
             raise ValueError("symbol must contain non-whitespace characters.")
         return cleaned_symbol
 
+    @field_validator("action")
+    @classmethod
+    def validate_action(cls, action: TradeAction) -> TradeAction:
+        if action == "HOLD":
+            raise ValueError("action must be BUY or SELL for direct broker orders.")
+        return action
+
     @field_validator("broker_exchange_code")
     @classmethod
     def normalize_broker_exchange_code(cls, broker_exchange_code: str | None) -> str | None:

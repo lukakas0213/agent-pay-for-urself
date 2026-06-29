@@ -70,6 +70,16 @@ class MandateViolationItem(BaseModel):
     message: str
 
 
+class SupervisorDirectiveItem(BaseModel):
+    """Structured result of the main agent's natural-language interpretation."""
+
+    objective: str
+    focus_symbols: list[str]
+    watch_symbols: list[str]
+    guidance: list[str]
+    summary: str
+
+
 class DecisionRequest(BaseModel):
     """Request body for running the decision workflow."""
 
@@ -79,6 +89,8 @@ class DecisionRequest(BaseModel):
                 {
                     "symbols": ["AAPL", "MSFT"],
                     "max_position_weight": 0.2,
+                    "user_prompt": "장기적으로 수익을 낼 수 있는 전략과 종목을 중심으로 운용하라.",
+                    "chat_messages": ["애플이 요즘 심상치 않으니 좋은 타이밍에 들어가라"],
                     "mandate": {
                         "objective": "Evaluate only allowed symbols.",
                         "allowed_symbols": ["AAPL", "MSFT"],
@@ -95,7 +107,7 @@ class DecisionRequest(BaseModel):
         min_length=1,
         description=(
             "Stock symbols to evaluate. Symbols are normalized to uppercase in workflow "
-            "outputs such as decisions, analysis signals, risk results, and order plans."
+            "outputs such as decisions, analysis signals, reports, and order plans."
         ),
         examples=[["AAPL", "MSFT"]],
     )
@@ -109,6 +121,16 @@ class DecisionRequest(BaseModel):
         ),
         examples=[0.2],
     )
+    user_prompt: str = Field(
+        default="",
+        description="Primary natural-language objective interpreted by the main agent.",
+    )
+    chat_messages: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Optional follow-up natural-language instructions interpreted by the main agent."
+        ),
+    )
     mandate: MandateRequest | None = Field(
         default=None,
         description="Optional user mandate that constrains this workflow run.",
@@ -117,12 +139,18 @@ class DecisionRequest(BaseModel):
     @field_validator("symbols")
     @classmethod
     def validate_symbols(cls, symbols: list[str]) -> list[str]:
-        """Strip surrounding whitespace and reject blank symbols before workflow execution."""
-
         cleaned_symbols = [symbol.strip() for symbol in symbols]
         if any(not symbol for symbol in cleaned_symbols):
             raise ValueError("Each symbol must contain non-whitespace characters.")
         return cleaned_symbols
+
+    @field_validator("chat_messages")
+    @classmethod
+    def validate_chat_messages(cls, chat_messages: list[str]) -> list[str]:
+        cleaned_messages = [message.strip() for message in chat_messages]
+        if any(not message for message in cleaned_messages):
+            raise ValueError("Each chat message must contain non-whitespace characters.")
+        return cleaned_messages
 
 
 class MarketDataItem(BaseModel):
@@ -153,13 +181,27 @@ class AnalysisSignalItem(BaseModel):
     rationale: str = Field(description="Explanation for the analysis signal.")
 
 
-class RiskAssessmentItem(BaseModel):
-    """Risk validation result for one symbol."""
+class InvestmentReportItem(BaseModel):
+    """Structured report generated before buy/sell decisions."""
 
-    symbol: str = Field(description="Uppercase stock symbol that was checked.")
-    approved: bool = Field(description="Whether risk validation approved the symbol.")
-    reasons: list[str] = Field(description="Risk approval or rejection reasons.")
-    max_position_weight: float = Field(description="Position weight limit used for validation.")
+    symbol: str = Field(description="Uppercase stock symbol summarized by the report agent.")
+    summary: str = Field(description="Compact report summary used by downstream decisions.")
+    bull_points: list[str] = Field(description="Positive drivers identified for the symbol.")
+    bear_points: list[str] = Field(description="Negative drivers identified for the symbol.")
+    risk_flags: list[str] = Field(description="Risk review flags or pass notes.")
+    risk_approved: bool = Field(
+        description="Whether the report-level risk review approved the symbol."
+    )
+    max_position_weight: float = Field(
+        description="Position weight limit used for the report review."
+    )
+    recommended_action_bias: TradeAction = Field(
+        description="Report agent's structured action bias."
+    )
+    signal_strength: float = Field(
+        description="Report-level normalized confidence derived from analysis signals."
+    )
+    rationale: str = Field(description="Full report rationale consumed by the buy/sell agent.")
 
 
 class DecisionItem(BaseModel):
@@ -169,7 +211,9 @@ class DecisionItem(BaseModel):
     action: TradeAction = Field(description="Decision action: BUY, SELL, or HOLD.")
     confidence: float = Field(description="Decision confidence score from 0 to 1.")
     rationale: str = Field(description="Human-readable explanation for the decision.")
-    risk_approved: bool = Field(description="Whether risk validation approved this symbol.")
+    risk_approved: bool = Field(
+        description="Whether report-level risk review approved this symbol."
+    )
 
 
 class OrderItem(BaseModel):
@@ -228,106 +272,26 @@ class RuntimeSummaryItem(BaseModel):
 class DecisionResponse(BaseModel):
     """Decision workflow result returned by POST /decisions."""
 
-    model_config = ConfigDict(
-        json_schema_extra={
-            "examples": [
-                {
-                    "run_id": "run_123",
-                    "symbols": ["AAPL", "MSFT"],
-                    "runtime": {
-                        "data_mode": "stub",
-                        "llm_mode": "fallback",
-                        "model_name": None,
-                        "agent_models": None,
-                        "live_order_enabled": False,
-                    },
-                    "mandate": {
-                        "objective": "Evaluate requested US equity symbols conservatively.",
-                        "allowed_symbols": [],
-                        "excluded_symbols": [],
-                        "max_position_weight": 0.2,
-                        "max_order_notional": None,
-                        "min_cash_weight": None,
-                        "risk_tolerance": "medium",
-                        "requires_approval_for_live_orders": True,
-                        "user_notes": "",
-                    },
-                    "market_data": [
-                        {
-                            "symbol": "AAPL",
-                            "latest_price": 100.0,
-                            "broker_exchange_code": None,
-                            "news_headlines": ["AAPL market update"],
-                            "financial_metrics": {"pe_ratio": 20.0},
-                        }
-                    ],
-                    "analysis_signals": [
-                        {
-                            "symbol": "AAPL",
-                            "price_score": 0.5,
-                            "news_score": 0.55,
-                            "financial_score": 0.7,
-                            "total_score": 0.5833,
-                            "rationale": (
-                                "AAPL: price, news, and financial data were reviewed; "
-                                "PE ratio=20.0."
-                            ),
-                        }
-                    ],
-                    "risk_assessments": [
-                        {
-                            "symbol": "AAPL",
-                            "approved": True,
-                            "reasons": ["risk rules passed"],
-                            "max_position_weight": 0.2,
-                        }
-                    ],
-                    "decisions": [
-                        {
-                            "symbol": "AAPL",
-                            "action": "HOLD",
-                            "confidence": 0.5833,
-                            "rationale": (
-                                "AAPL: price, news, and financial data were reviewed; "
-                                "PE ratio=20.0."
-                            ),
-                            "risk_approved": True,
-                        }
-                    ],
-                    "orders": [
-                        {
-                            "symbol": "AAPL",
-                            "action": "HOLD",
-                            "quantity": 0,
-                            "should_submit": False,
-                            "reason": "no executable order",
-                        }
-                    ],
-                    "evaluation_log": {
-                        "decision_count": 2,
-                        "order_count": 2,
-                        "blocked_order_count": 2,
-                        "notes": ["AAPL: HOLD", "MSFT: HOLD"],
-                    },
-                    "mandate_violations": [],
-                }
-            ]
-        }
-    )
-
     run_id: str = Field(description="Identifier for the stored workflow result.")
     symbols: list[str] = Field(description="Symbols received in the request.")
+    user_prompt: str = Field(description="Primary natural-language objective for the run.")
+    chat_messages: list[str] = Field(
+        description="Follow-up natural-language instructions attached to the run."
+    )
     runtime: RuntimeSummaryItem | None = Field(
         default=None,
         description="Safe runtime summary showing which data and LLM modes were active.",
     )
     mandate: MandateItem = Field(description="User mandate enforced by the main agent.")
+    supervisor_directive: SupervisorDirectiveItem = Field(
+        description="Structured interpretation produced by the main agent before orchestration."
+    )
     market_data: list[MarketDataItem] = Field(description="Market data collected before analysis.")
     analysis_signals: list[AnalysisSignalItem] = Field(
-        description="Analysis scores generated before risk validation and decision making."
+        description="Analysis scores generated before report writing and decision making."
     )
-    risk_assessments: list[RiskAssessmentItem] = Field(
-        description="Risk validation results generated before buy/sell/hold decisions."
+    investment_reports: list[InvestmentReportItem] = Field(
+        description="Structured reports generated after analysis and before buy/sell decisions."
     )
     decisions: list[DecisionItem] = Field(description="Decision result for each symbol.")
     orders: list[OrderItem] = Field(description="Order plan for each decision.")

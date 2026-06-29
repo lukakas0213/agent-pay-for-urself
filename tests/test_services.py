@@ -44,6 +44,7 @@ class ConfiguredLLMClient(NoopAgentLLMClient):
     def __init__(self) -> None:
         self.model_name = "gpt-5.5"
         self.agent_model_names = {
+            "main_agent": "gpt-5.5",
             "data_collection": "gpt-5.4-mini",
             "data_analysis": "gpt-5.5",
         }
@@ -78,6 +79,7 @@ def test_decision_workflow_service_reports_runtime_summary() -> None:
     assert runtime.llm_mode == "model"
     assert runtime.model_name == "gpt-5.5"
     assert runtime.agent_models == {
+        "main_agent": "gpt-5.5",
         "data_collection": "gpt-5.4-mini",
         "data_analysis": "gpt-5.5",
     }
@@ -96,3 +98,21 @@ def test_decision_workflow_service_reports_live_order_capability_from_broker_ada
     runtime = service.runtime_summary()
 
     assert runtime.live_order_enabled is True
+
+
+def test_decision_workflow_service_can_rerun_with_followup_message() -> None:
+    service = DecisionWorkflowService(
+        main_agent=MainAgent(),
+        workflow_run_repository=InMemoryWorkflowRunRepository(),
+    )
+    run_id, _ = service.run(
+        symbols=["MSFT"],
+        max_position_weight=0.2,
+        user_prompt="장기 전략 중심",
+    )
+
+    updated_run_id, updated_result = service.rerun_with_message(run_id, "애플을 주시해")
+
+    assert updated_run_id != run_id
+    assert updated_result.request.chat_messages == ("애플을 주시해",)
+    assert updated_result.supervisor_directive.watch_symbols == ("AAPL",)

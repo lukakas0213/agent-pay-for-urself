@@ -34,11 +34,11 @@ AGENT_PROMPT_DEFAULTS: tuple[AgentPromptPayload, ...] = (
         "source": "default",
     },
     {
-        "agent_key": "risk_management",
-        "label": "리스크 관리",
+        "agent_key": "report",
+        "label": "보고서 작성",
         "prompt": (
-            "Prefer conservative approvals, explain each rejection reason, and do not weaken "
-            "mandate boundaries."
+            "Write structured reports that summarize upside, downside, and risk approval "
+            "without weakening mandate boundaries."
         ),
         "updated_at": "default",
         "source": "default",
@@ -47,8 +47,8 @@ AGENT_PROMPT_DEFAULTS: tuple[AgentPromptPayload, ...] = (
         "agent_key": "buy_sell",
         "label": "매수/매도 판단",
         "prompt": (
-            "Bias toward HOLD when the analysis signal or risk approval is weak, and make the "
-            "decision rationale easy to inspect."
+            "Bias toward HOLD when the report risk review is weak, and make the decision "
+            "rationale easy to inspect."
         ),
         "updated_at": "default",
         "source": "default",
@@ -77,8 +77,6 @@ AGENT_PROMPT_DEFAULTS: tuple[AgentPromptPayload, ...] = (
 
 
 class AgentPromptRepository(ABC):
-    """Stores the base prompt for each workflow agent."""
-
     @abstractmethod
     def list(self) -> list[AgentPromptPayload]:
         """Return all stored prompt records."""
@@ -93,8 +91,6 @@ class AgentPromptRepository(ABC):
 
 
 class JsonFileAgentPromptRepository(AgentPromptRepository):
-    """JSON file repository for local single-user prompt settings."""
-
     def __init__(self, path: Path | str) -> None:
         self._path = Path(path)
 
@@ -140,8 +136,6 @@ class JsonFileAgentPromptRepository(AgentPromptRepository):
 
 
 def merge_prompt_text(base_prompt: str, override_prompt: str) -> str:
-    """Join stored agent prompts and run-specific prompt overrides without losing either."""
-
     base = base_prompt.strip()
     override = override_prompt.strip()
     if not base:
@@ -155,8 +149,6 @@ def resolve_agent_prompt_overrides(
     base_prompts: dict[str, str],
     override_prompts: AgentPromptOverrides,
 ) -> AgentPromptOverrides:
-    """Merge stored prompts with run-specific overrides in agent order."""
-
     return AgentPromptOverrides(
         data_collection=merge_prompt_text(
             base_prompts.get("data_collection", ""),
@@ -166,9 +158,9 @@ def resolve_agent_prompt_overrides(
             base_prompts.get("data_analysis", ""),
             override_prompts.data_analysis,
         ),
-        risk_management=merge_prompt_text(
-            base_prompts.get("risk_management", ""),
-            override_prompts.risk_management,
+        report=merge_prompt_text(
+            base_prompts.get("report", ""),
+            override_prompts.report,
         ),
         buy_sell=merge_prompt_text(
             base_prompts.get("buy_sell", ""),
@@ -186,6 +178,4 @@ def resolve_agent_prompt_overrides(
 
 
 def current_timestamp() -> str:
-    """Return the current UTC timestamp in ISO format for persisted prompt metadata."""
-
     return datetime.now(UTC).isoformat()

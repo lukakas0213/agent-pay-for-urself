@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from "next/link";
@@ -19,8 +18,8 @@ export function SiteNav() {
       <div className="site-header-inner">
         <div className="brand-block">
           <span className="eyebrow">agent-pay-for-urself</span>
-          <strong>운영 콘솔</strong>
-          <p>메인 실행, 계좌, 보고서, 에이전트 프롬프트를 한 화면 체계로 묶습니다.</p>
+          <strong>투자 워크플로우 콘솔</strong>
+          <p>메인 채팅, 자동매매 승인, 에이전트 타임라인, 보고서, 계좌 상태, 프롬프트 설정을 한 흐름으로 정리했습니다.</p>
         </div>
         <nav className="site-nav" aria-label="Primary navigation">
           {primaryNavItems.map((item) => {

@@ -11,9 +11,10 @@ from agent_pay_for_urself.llm.base import AgentLLMClient, AgentLLMRequest, JSONO
 DEFAULT_OPENAI_MODEL = "gpt-5.5"
 DEFAULT_TIMEOUT_SECONDS = 30.0
 AGENT_MODEL_ENV_VARS = {
+    "main_agent": "OPENAI_MAIN_AGENT_MODEL",
     "data_collection": "OPENAI_DATA_COLLECTION_MODEL",
     "data_analysis": "OPENAI_DATA_ANALYSIS_MODEL",
-    "risk_management": "OPENAI_RISK_MANAGEMENT_MODEL",
+    "report": "OPENAI_REPORT_MODEL",
     "buy_sell": "OPENAI_BUY_SELL_MODEL",
     "order_execution": "OPENAI_ORDER_EXECUTION_MODEL",
     "log_evaluation": "OPENAI_LOG_EVALUATION_MODEL",

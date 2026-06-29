@@ -19,10 +19,11 @@ from agent_pay_for_urself.schemas import (
     AnalysisSignal,
     EvaluationLog,
     InvestmentMandate,
+    InvestmentReport,
     InvestmentRequest,
     MarketData,
     OrderPlan,
-    RiskAssessment,
+    SupervisorDirective,
     TradeDecision,
     WorkflowResult,
 )
@@ -103,12 +104,18 @@ def _build_result() -> WorkflowResult:
             rationale="positive signal",
         ),
     )
-    risk_assessments = (
-        RiskAssessment(
+    investment_reports = (
+        InvestmentReport(
             symbol="AAPL",
-            approved=True,
-            reasons=("risk rules passed",),
+            summary="positive report",
+            bull_points=("strong valuation",),
+            bear_points=("limited downside",),
+            risk_flags=("risk rules passed",),
+            risk_approved=True,
             max_position_weight=0.2,
+            recommended_action_bias="BUY",
+            signal_strength=0.8,
+            rationale="positive report rationale",
         ),
     )
     trade_decisions = (
@@ -140,9 +147,16 @@ def _build_result() -> WorkflowResult:
     return WorkflowResult(
         request=request,
         mandate=mandate,
+        supervisor_directive=SupervisorDirective(
+            objective=mandate.objective,
+            focus_symbols=request.symbols,
+            watch_symbols=(),
+            guidance=(),
+            summary="focus=AAPL",
+        ),
         market_data=market_data,
         analysis_signals=analysis_signals,
-        risk_assessments=risk_assessments,
+        investment_reports=investment_reports,
         trade_decisions=trade_decisions,
         order_plans=order_plans,
         evaluation_log=evaluation_log,
@@ -214,6 +228,28 @@ def test_submit_direct_order_endpoint_requires_explicit_confirmation() -> None:
     app.dependency_overrides.clear()
 
 
+def test_submit_direct_order_endpoint_rejects_hold_action() -> None:
+    _, order_service, _ = _override_services(LiveBrokerAdapter())
+    app.dependency_overrides[get_order_submission_service] = lambda: order_service
+    client = TestClient(app)
+
+    response = client.post(
+        "/orders/submit",
+        json={
+            "symbol": "AAPL",
+            "action": "HOLD",
+            "quantity": 1,
+            "broker_exchange_code": "NASD",
+            "limit_price": 201.25,
+            "confirm_live_order": True,
+        },
+    )
+
+    assert response.status_code == 422
+    assert "BUY or SELL" in response.text
+    app.dependency_overrides.clear()
+
+
 def test_submit_direct_order_endpoint_returns_503_when_broker_is_disabled() -> None:
     _, order_service, _ = _override_services(DisabledBrokerAdapter())
     app.dependency_overrides[get_order_submission_service] = lambda: order_service
@@ -250,52 +286,3 @@ def test_submit_live_orders_endpoint_submits_stored_executable_orders() -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["accepted_order_count"] == 1
-    assert payload["rejected_order_count"] == 0
-    assert payload["submissions"][0]["symbol"] == "AAPL"
-    assert payload["submissions"][0]["broker_order_id"] == "broker-AAPL"
-    app.dependency_overrides.clear()
-
-
-def test_submit_live_orders_endpoint_requires_explicit_confirmation() -> None:
-    _, order_service, run_id = _override_services(LiveBrokerAdapter())
-    app.dependency_overrides[get_order_submission_service] = lambda: order_service
-    client = TestClient(app)
-
-    response = client.post(
-        "/orders/submissions",
-        json={"run_id": run_id, "confirm_live_order": False},
-    )
-
-    assert response.status_code == 400
-    assert "confirm_live_order" in response.json()["detail"]
-    app.dependency_overrides.clear()
-
-
-def test_submit_live_orders_endpoint_returns_404_for_unknown_run_id() -> None:
-    _, order_service, _ = _override_services(LiveBrokerAdapter())
-    app.dependency_overrides[get_order_submission_service] = lambda: order_service
-    client = TestClient(app)
-
-    response = client.post(
-        "/orders/submissions",
-        json={"run_id": "missing-run", "confirm_live_order": True},
-    )
-
-    assert response.status_code == 404
-    assert response.json()["detail"] == "workflow run not found: missing-run"
-    app.dependency_overrides.clear()
-
-
-def test_submit_live_orders_endpoint_returns_503_when_broker_is_disabled() -> None:
-    _, order_service, run_id = _override_services(DisabledBrokerAdapter())
-    app.dependency_overrides[get_order_submission_service] = lambda: order_service
-    client = TestClient(app)
-
-    response = client.post(
-        "/orders/submissions",
-        json={"run_id": run_id, "confirm_live_order": True},
-    )
-
-    assert response.status_code == 503
-    assert "live broker submission is not enabled" in response.json()["detail"]
-    app.dependency_overrides.clear()

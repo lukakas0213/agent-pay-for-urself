@@ -21,8 +21,10 @@ WorkflowService = Annotated[DecisionWorkflowService, Depends(get_decision_workfl
     description=(
         "Runs the current multi-agent workflow for the requested symbols: data collection, "
         "signal analysis, risk validation, buy/sell/hold decision, order planning, and "
-        "evaluation summary. Use this endpoint to inspect analysis scores, risk checks, "
-        "decisions, and non-submitted order plans even when a broker adapter is configured."
+        "evaluation summary. The main agent can also interpret the primary user prompt and "
+        "follow-up chat messages before it orchestrates the sub-agents. Use this endpoint "
+        "to inspect analysis scores, risk checks, decisions, and non-submitted order plans "
+        "even when a broker adapter is configured."
     ),
 )
 def create_decision(
@@ -36,6 +38,8 @@ def create_decision(
             symbols=request.symbols,
             max_position_weight=request.max_position_weight,
             mandate=_to_investment_mandate(request),
+            user_prompt=request.user_prompt,
+            chat_messages=request.chat_messages,
         )
         return to_decision_response(run_id, result, workflow_service.runtime_summary())
     except ValueError as exc:

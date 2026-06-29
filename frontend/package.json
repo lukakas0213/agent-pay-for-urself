@@ -2,7 +2,9 @@
   "name": "agent-pay-for-urself-frontend",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "predev": "rm -rf .next out",
+    "dev": "WATCHPACK_POLLING=true next dev",
+    "prebuild": "rm -rf .next out",
     "build": "next build",
     "lint": "next lint"
   },

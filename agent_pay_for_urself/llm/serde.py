@@ -8,9 +8,9 @@ from typing import Any
 from agent_pay_for_urself.schemas import (
     AnalysisSignal,
     EvaluationLog,
+    InvestmentReport,
     MarketData,
     OrderPlan,
-    RiskAssessment,
     TradeDecision,
 )
 
@@ -25,8 +25,8 @@ def parse_analysis_signals(value: Any) -> tuple[AnalysisSignal, ...]:
     return tuple(_parse_analysis_signal(item) for item in _require_sequence(value))
 
 
-def parse_risk_assessments(value: Any) -> tuple[RiskAssessment, ...]:
-    return tuple(_parse_risk_assessment(item) for item in _require_sequence(value))
+def parse_investment_reports(value: Any) -> tuple[InvestmentReport, ...]:
+    return tuple(_parse_investment_report(item) for item in _require_sequence(value))
 
 
 def parse_trade_decisions(value: Any) -> tuple[TradeDecision, ...]:
@@ -74,13 +74,22 @@ def _parse_analysis_signal(value: Any) -> AnalysisSignal:
     )
 
 
-def _parse_risk_assessment(value: Any) -> RiskAssessment:
+def _parse_investment_report(value: Any) -> InvestmentReport:
     item = _require_mapping(value)
-    return RiskAssessment(
+    action = str(item["recommended_action_bias"])
+    if action not in VALID_TRADE_ACTIONS:
+        raise ValueError(f"Unsupported trade action: {action}")
+    return InvestmentReport(
         symbol=str(item["symbol"]),
-        approved=bool(item["approved"]),
-        reasons=tuple(str(reason) for reason in _require_sequence(item["reasons"])),
+        summary=str(item["summary"]),
+        bull_points=tuple(str(point) for point in _require_sequence(item["bull_points"])),
+        bear_points=tuple(str(point) for point in _require_sequence(item["bear_points"])),
+        risk_flags=tuple(str(flag) for flag in _require_sequence(item["risk_flags"])),
+        risk_approved=bool(item["risk_approved"]),
         max_position_weight=float(item["max_position_weight"]),
+        recommended_action_bias=action,
+        signal_strength=float(item["signal_strength"]),
+        rationale=str(item["rationale"]),
     )
 
 

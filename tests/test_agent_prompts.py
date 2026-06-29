@@ -11,7 +11,7 @@ def test_agent_prompt_repository_keeps_default_prompts_and_updates_one_item(tmp_
     assert {item["agent_key"] for item in prompts} == {
         "data_collection",
         "data_analysis",
-        "risk_management",
+        "report",
         "buy_sell",
         "order_execution",
         "log_evaluation",

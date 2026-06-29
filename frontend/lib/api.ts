@@ -6,5 +6,9 @@ export function buildApiUrl(path: string) {
   }
 
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  return new URL(normalizedPath, apiBaseUrl.replace(/\/+$/, "")).toString();
+  const backendPath =
+    normalizedPath === "/api"
+      ? "/"
+      : normalizedPath.replace(/^\/api(?=\/|$)/, "");
+  return new URL(backendPath, apiBaseUrl.replace(/\/+$/, "")).toString();
 }

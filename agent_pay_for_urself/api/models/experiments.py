@@ -15,7 +15,7 @@ class AgentPromptOverridesRequest(BaseModel):
 
     data_collection: str = ""
     data_analysis: str = ""
-    risk_management: str = ""
+    report: str = ""
     buy_sell: str = ""
     order_execution: str = ""
     log_evaluation: str = ""

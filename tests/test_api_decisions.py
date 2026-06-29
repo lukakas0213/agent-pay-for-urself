@@ -7,7 +7,7 @@ from agent_pay_for_urself.agents import (
     DataCollectionAgent,
     LogEvaluationAgent,
     OrderExecutionAgent,
-    RiskManagementAgent,
+    ReportAgent,
 )
 from agent_pay_for_urself.api.dependencies import get_decision_workflow_service
 from agent_pay_for_urself.api.main import app
@@ -27,19 +27,21 @@ class ExplodingMarketDataProvider(MarketDataProvider):
 
 def _override_decision_workflow_service() -> DecisionWorkflowService:
     provider = ExplodingMarketDataProvider()
+    llm_client = NoopAgentLLMClient()
     main_agent = MainAgent(
         data_collection_agent=DataCollectionAgent(market_data_provider=provider),
-        data_analysis_agent=DataAnalysisAgent(llm_client=NoopAgentLLMClient()),
-        risk_management_agent=RiskManagementAgent(llm_client=NoopAgentLLMClient()),
-        buy_sell_agent=BuySellAgent(llm_client=NoopAgentLLMClient()),
-        order_execution_agent=OrderExecutionAgent(llm_client=NoopAgentLLMClient()),
-        log_evaluation_agent=LogEvaluationAgent(llm_client=NoopAgentLLMClient()),
+        data_analysis_agent=DataAnalysisAgent(llm_client=llm_client),
+        report_agent=ReportAgent(llm_client=llm_client),
+        buy_sell_agent=BuySellAgent(llm_client=llm_client),
+        order_execution_agent=OrderExecutionAgent(llm_client=llm_client),
+        log_evaluation_agent=LogEvaluationAgent(llm_client=llm_client),
+        llm_client=llm_client,
     )
     return DecisionWorkflowService(
         main_agent=main_agent,
         workflow_run_repository=InMemoryWorkflowRunRepository(),
         market_data_provider=provider,
-        llm_client=NoopAgentLLMClient(),
+        llm_client=llm_client,
     )
 
 
@@ -48,21 +50,30 @@ def test_create_decision_returns_console_payload() -> None:
 
     response = client.post(
         "/decisions",
-        json={"symbols": ["AAPL", "MSFT"], "max_position_weight": 0.2},
+        json={
+            "symbols": ["AAPL", "MSFT"],
+            "max_position_weight": 0.2,
+            "user_prompt": "장기 전략 중심으로 운용하라",
+            "chat_messages": ["애플을 주시해"],
+        },
     )
 
     assert response.status_code == 200
     payload = response.json()
     assert isinstance(payload["run_id"], str)
     assert payload["symbols"] == ["AAPL", "MSFT"]
+    assert payload["user_prompt"] == "장기 전략 중심으로 운용하라"
+    assert payload["chat_messages"] == ["애플을 주시해"]
     assert isinstance(payload["runtime"]["data_mode"], str)
     assert payload["runtime"]["llm_mode"] in {"fallback", "model"}
     assert isinstance(payload["runtime"]["live_order_enabled"], bool)
     assert payload["mandate"]["max_position_weight"] == 0.2
+    assert payload["supervisor_directive"]["watch_symbols"] == []
+    assert payload["supervisor_directive"]["focus_symbols"] == ["AAPL", "MSFT"]
     assert payload["mandate_violations"] == []
     assert len(payload["market_data"]) == 2
     assert len(payload["analysis_signals"]) == 2
-    assert len(payload["risk_assessments"]) == 2
+    assert len(payload["investment_reports"]) == 2
     assert len(payload["decisions"]) == 2
     assert len(payload["orders"]) == 2
     assert payload["evaluation_log"]["decision_count"] == 2
@@ -81,9 +92,18 @@ def test_create_decision_returns_console_payload() -> None:
         "total_score",
         "rationale",
     } <= payload["analysis_signals"][0].keys()
-    assert {"symbol", "approved", "reasons", "max_position_weight"} <= (
-        payload["risk_assessments"][0].keys()
-    )
+    assert {
+        "symbol",
+        "summary",
+        "bull_points",
+        "bear_points",
+        "risk_flags",
+        "risk_approved",
+        "max_position_weight",
+        "recommended_action_bias",
+        "signal_strength",
+        "rationale",
+    } <= payload["investment_reports"][0].keys()
 
 
 def test_create_decision_accepts_user_mandate_and_returns_violations() -> None:
@@ -124,6 +144,22 @@ def test_create_decision_rejects_blank_symbols() -> None:
 
     assert response.status_code == 422
     assert "non-whitespace" in response.text
+
+
+def test_create_decision_rejects_blank_chat_messages() -> None:
+    client = TestClient(app)
+
+    response = client.post(
+        "/decisions",
+        json={
+            "symbols": ["AAPL"],
+            "max_position_weight": 0.2,
+            "chat_messages": ["   "],
+        },
+    )
+
+    assert response.status_code == 422
+    assert "chat message" in response.text
 
 
 def test_create_decision_surfaces_provider_failure_as_http_error() -> None:

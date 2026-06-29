@@ -15,7 +15,7 @@ from agent_pay_for_urself.schemas import AgentPromptOverrides
 AGENT_LABELS = {
     "data_collection": "데이터 수집",
     "data_analysis": "데이터 분석",
-    "risk_management": "리스크 관리",
+    "report": "보고서 작성",
     "buy_sell": "매수/매도 판단",
     "order_execution": "주문 실행",
     "log_evaluation": "로그/평가",
@@ -23,8 +23,6 @@ AGENT_LABELS = {
 
 
 class AgentPromptService:
-    """Reads and updates stored base prompts for each workflow agent."""
-
     def __init__(self, repository: AgentPromptRepository) -> None:
         self._repository = repository
 
