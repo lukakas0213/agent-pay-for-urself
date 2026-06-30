@@ -13,6 +13,7 @@ from agent_pay_for_urself.api.models.decisions import (
 class AgentPromptOverridesRequest(BaseModel):
     """Optional per-agent prompt additions for one experiment run."""
 
+    main_agent: str = ""
     data_collection: str = ""
     data_analysis: str = ""
     report: str = ""

@@ -35,17 +35,15 @@ type ChatEntry = {
   timestamp: string;
 };
 
-type TimelineEntry = {
-  id: string;
-  title: string;
-  detail: string;
-  status: "running" | "connected" | "disconnected";
-  timestamp: string;
+type RecentRunRecord = {
+  run_id: string;
+  viewed_at: string;
+  result: DecisionResponse;
 };
 
 const RESULT_STORAGE_KEY = "latest-workflow-result";
 const CHAT_STORAGE_KEY = "workflow-chat-history";
-const TIMELINE_STORAGE_KEY = "workflow-timeline-history";
+const RECENT_RUNS_STORAGE_KEY = "workflow-recent-runs";
 
 function buildDecisionRequest(
   symbols: string[],
@@ -76,14 +74,6 @@ function buildDecisionRequest(
   };
 }
 
-function nowIso() {
-  return new Date().toISOString();
-}
-
-function buildId(prefix: string) {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
 function loadStoredJson<T>(key: string): T | null {
   if (typeof window === "undefined") {
     return null;
@@ -108,24 +98,18 @@ function saveStoredJson<T>(key: string, value: T) {
   window.localStorage.setItem(key, JSON.stringify(value));
 }
 
-function riskToleranceLabel(value: RiskTolerance) {
-  if (value === "low") {
-    return "낮음";
-  }
-  if (value === "high") {
-    return "높음";
-  }
-  return "보통";
+function nowIso() {
+  return new Date().toISOString();
 }
 
-function statusLabel(status: TimelineEntry["status"]) {
-  if (status === "running") {
-    return "러닝중";
-  }
-  if (status === "connected") {
-    return "연결됨";
-  }
-  return "연결안됨";
+function buildId(prefix: string) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function riskToleranceLabel(value: RiskTolerance) {
+  if (value === "low") return "낮음";
+  if (value === "high") return "높음";
+  return "보통";
 }
 
 function buildAssistantSummary(result: DecisionResponse) {
@@ -134,17 +118,51 @@ function buildAssistantSummary(result: DecisionResponse) {
   return `실행이 끝났습니다. 메인 요약은 “${summary}”이고 현재 판단은 ${decisions || "없음"}입니다.`;
 }
 
-function agentStatusText(result: DecisionResponse | null, loading: boolean, agentKey: string) {
-  if (loading) {
-    return "러닝중";
+function buildRunHeadline(result: DecisionResponse) {
+  return result.supervisor_directive.objective || result.user_prompt || "최근 실행";
+}
+
+function buildRunSummary(result: DecisionResponse) {
+  return result.supervisor_directive.summary || result.investment_reports[0]?.summary || "저장된 실행 요약이 없습니다.";
+}
+
+function normalizeRecentRuns(value: unknown): RecentRunRecord[] {
+  if (!Array.isArray(value)) {
+    return [];
   }
-  if (!result) {
-    return "연결안됨";
-  }
-  if (agentKey === "order_execution") {
-    return result.orders.some((item) => item.should_submit) ? "연결됨" : "연결됨";
-  }
-  return "연결됨";
+
+  return value
+    .map((item) => {
+      if (!item || typeof item !== "object") {
+        return null;
+      }
+      const record = item as Record<string, unknown>;
+      const result = normalizeDecisionResponse(record.result);
+      if (!result) {
+        return null;
+      }
+      return {
+        run_id: typeof record.run_id === "string" ? record.run_id : result.run_id,
+        viewed_at: typeof record.viewed_at === "string" ? record.viewed_at : nowIso(),
+        result,
+      };
+    })
+    .filter((item): item is RecentRunRecord => item !== null);
+}
+
+function SectionHeader({ title, count }: { title: string; count?: string | number }) {
+  return (
+    <div className="discover-section-header">
+      <div className="discover-section-title-row">
+        <h2>{title}</h2>
+        {count !== undefined ? <span className="section-count-badge">{count}</span> : null}
+      </div>
+      <div className="section-actions">
+        <button type="button">Configure</button>
+        <button type="button">See all</button>
+      </div>
+    </div>
+  );
 }
 
 export function WorkflowHome() {
@@ -157,12 +175,13 @@ export function WorkflowHome() {
   const [riskTolerance, setRiskTolerance] = useState<RiskTolerance>("medium");
   const [autoTradingEnabled, setAutoTradingEnabled] = useState(false);
   const [userNotes, setUserNotes] = useState("");
+  const [applyChatToWorkflow, setApplyChatToWorkflow] = useState(true);
   const [chatDraft, setChatDraft] = useState("");
   const [chatEntries, setChatEntries] = useState<ChatEntry[]>([]);
-  const [timelineEntries, setTimelineEntries] = useState<TimelineEntry[]>([]);
   const [saveName, setSaveName] = useState("최근 실행 보고서");
   const [saveDescription, setSaveDescription] = useState("");
   const [result, setResult] = useState<DecisionResponse | null>(null);
+  const [recentRuns, setRecentRuns] = useState<RecentRunRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -176,6 +195,7 @@ export function WorkflowHome() {
     setMaxPositionWeight(nextSettings.default_max_position_weight);
     setRiskTolerance(nextSettings.default_risk_tolerance);
     setAutoTradingEnabled(nextSettings.auto_trading_enabled);
+    setApplyChatToWorkflow(nextSettings.auto_apply_chat_followups);
 
     const storedResult = normalizeDecisionResponse(loadStoredJson<DecisionResponse>(RESULT_STORAGE_KEY));
     if (storedResult) {
@@ -187,10 +207,8 @@ export function WorkflowHome() {
       setChatEntries(storedChat);
     }
 
-    const storedTimeline = loadStoredJson<TimelineEntry[]>(TIMELINE_STORAGE_KEY);
-    if (storedTimeline) {
-      setTimelineEntries(storedTimeline);
-    }
+    const storedRuns = normalizeRecentRuns(loadStoredJson<RecentRunRecord[]>(RECENT_RUNS_STORAGE_KEY));
+    setRecentRuns(storedRuns);
   }, []);
 
   const symbols = useMemo(() => parseSymbols(symbolsInput), [symbolsInput]);
@@ -200,7 +218,7 @@ export function WorkflowHome() {
   const hasValidWeight = Number.isFinite(weight) && weight > 0 && weight <= 1;
   const canRun = symbols.length > 0 && hasValidWeight && !isLoading;
   const canSave = Boolean(result && saveName.trim() && !isSaving);
-  const timelineLimit = settings?.timeline_limit ?? 12;
+  const activeRun = result ?? recentRuns[0]?.result ?? null;
 
   function persistSettings(nextSettings: FrontendWorkspaceSettings) {
     setSettings(nextSettings);
@@ -214,6 +232,12 @@ export function WorkflowHome() {
     }
     setResult(normalizedResult);
     saveStoredJson(RESULT_STORAGE_KEY, normalizedResult);
+    const nextRecentRuns = [
+      { run_id: normalizedResult.run_id, viewed_at: nowIso(), result: normalizedResult },
+      ...recentRuns.filter((item) => item.run_id !== normalizedResult.run_id),
+    ].slice(0, 9);
+    setRecentRuns(nextRecentRuns);
+    saveStoredJson(RECENT_RUNS_STORAGE_KEY, nextRecentRuns);
   }
 
   function persistChat(nextChat: ChatEntry[]) {
@@ -221,54 +245,38 @@ export function WorkflowHome() {
     saveStoredJson(CHAT_STORAGE_KEY, nextChat);
   }
 
-  function persistTimeline(nextTimeline: TimelineEntry[]) {
-    setTimelineEntries(nextTimeline);
-    saveStoredJson(TIMELINE_STORAGE_KEY, nextTimeline);
-  }
-
-  function appendTimeline(entry: Omit<TimelineEntry, "id" | "timestamp">) {
-    const currentTimeline = loadStoredJson<TimelineEntry[]>(TIMELINE_STORAGE_KEY) ?? timelineEntries;
-    const nextTimeline = [
-      {
-        id: buildId("timeline"),
-        timestamp: nowIso(),
-        ...entry,
-      },
-      ...currentTimeline,
-    ].slice(0, timelineLimit);
-    persistTimeline(nextTimeline);
-  }
-
   function appendChat(entry: Omit<ChatEntry, "id" | "timestamp">) {
-    const currentChat = loadStoredJson<ChatEntry[]>(CHAT_STORAGE_KEY) ?? chatEntries;
     const nextChat = [
-      ...currentChat,
-      {
-        id: buildId("chat"),
-        timestamp: nowIso(),
-        ...entry,
-      },
+      ...chatEntries,
+      { id: buildId("chat"), timestamp: nowIso(), ...entry },
     ];
     persistChat(nextChat);
   }
 
   async function handleRun(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!canRun) {
-      return;
-    }
+    if (!canRun) return;
 
     setIsLoading(true);
     setError(null);
     setSaveMessage(null);
-    appendTimeline({
-      title: "메인 에이전트 실행 시작",
-      detail: `${symbols.join(", ")} 기준으로 워크플로우를 시작했습니다.`,
-      status: "running",
-    });
 
     try {
-      const payload = buildDecisionRequest(
+      const nextSettings = settings
+        ? {
+            ...settings,
+            default_symbols: symbolsInput,
+            default_max_position_weight: maxPositionWeight,
+            default_risk_tolerance: riskTolerance,
+            auto_trading_enabled: autoTradingEnabled,
+            auto_apply_chat_followups: applyChatToWorkflow,
+          }
+        : null;
+      if (nextSettings) {
+        persistSettings(nextSettings);
+      }
+
+      const requestBody = buildDecisionRequest(
         symbols,
         weight,
         userPrompt,
@@ -279,443 +287,309 @@ export function WorkflowHome() {
         userNotes,
         chatEntries.filter((entry) => entry.role === "user").map((entry) => entry.content),
       );
-      const data = await fetchJson<DecisionResponse>("/api/decisions", {
+      const response = await fetchJson<DecisionResponse>("/api/decisions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(requestBody),
       });
-      persistResult(data);
-      appendChat({ role: "assistant", content: buildAssistantSummary(data) });
-      appendTimeline({
-        title: "에이전트 실행 완료",
-        detail: data.supervisor_directive.summary || `${data.symbols.join(", ")} 분석이 완료되었습니다.`,
-        status: "connected",
-      });
+      const normalizedResponse = normalizeDecisionResponse(response);
+      if (!normalizedResponse) throw new Error("실행 결과를 해석하지 못했습니다.");
+      persistResult(normalizedResponse);
+      appendChat({ role: "assistant", content: buildAssistantSummary(normalizedResponse) });
+      setSaveName(`${symbols.join(", ")} 실행 보고서`);
     } catch (requestError) {
-      const message = requestError instanceof Error ? requestError.message : "실행 중 오류가 발생했습니다.";
-      setError(message);
-      appendTimeline({
-        title: "에이전트 실행 실패",
-        detail: message,
-        status: "disconnected",
-      });
+      setError(requestError instanceof Error ? requestError.message : "실행에 실패했습니다.");
     } finally {
       setIsLoading(false);
     }
   }
 
-  async function handleSendChat(event: FormEvent<HTMLFormElement>) {
+  async function handleFollowUp(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const message = chatDraft.trim();
-    if (!message || isChatLoading) {
-      return;
-    }
+    if (!activeRun?.run_id || !chatDraft.trim()) return;
 
-    setChatDraft("");
-    setError(null);
-    appendChat({ role: "user", content: message });
+    const userMessage = chatDraft.trim();
     setIsChatLoading(true);
+    setError(null);
+    setSaveMessage(null);
+    appendChat({ role: "user", content: userMessage });
+    setChatDraft("");
 
     try {
       const response = await fetchJson<AgentInteractionResponse>("/api/console/interactions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          message,
-          run_id: result?.run_id ?? null,
-          current_result: result,
-          apply_to_workflow: Boolean(result && settings?.auto_apply_chat_followups),
+          run_id: activeRun.run_id,
+          message: userMessage,
+          apply_to_workflow: applyChatToWorkflow,
         }),
       });
-
       appendChat({ role: "assistant", content: response.reply });
-      appendTimeline({
-        title: response.applied_to_workflow ? "채팅 지시를 반영해 재실행" : "메인 에이전트 답변 수신",
-        detail: response.reply,
-        status: response.applied_to_workflow ? "running" : "connected",
-      });
-
-      if (response.updated_result) {
-        persistResult(response.updated_result);
-        appendTimeline({
-          title: "후속 지시 반영 완료",
-          detail: response.updated_result.supervisor_directive.summary || "업데이트된 워크플로우 결과가 저장되었습니다.",
-          status: "connected",
-        });
+      const updatedResult = normalizeDecisionResponse(response.updated_result);
+      if (response.applied_to_workflow && updatedResult) {
+        persistResult(updatedResult);
       }
     } catch (requestError) {
-      const messageText = requestError instanceof Error ? requestError.message : "채팅 요청에 실패했습니다.";
-      setError(messageText);
-      appendChat({ role: "system", content: messageText });
-      appendTimeline({
-        title: "채팅 요청 실패",
-        detail: messageText,
-        status: "disconnected",
-      });
+      setError(requestError instanceof Error ? requestError.message : "후속 대화 처리에 실패했습니다.");
     } finally {
       setIsChatLoading(false);
     }
   }
 
-  async function handleSaveExperiment() {
-    if (!result || !canSave) {
-      return;
-    }
+  async function handleSaveReport(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!result || !canSave) return;
 
     setIsSaving(true);
+    setError(null);
     setSaveMessage(null);
+
     try {
-      const payload: ExperimentSaveRequest = {
-        run_id: result.run_id,
-        name: saveName.trim(),
-        description: saveDescription.trim(),
-      };
-      await fetchJson("/api/experiments/from-run", {
+      await fetchJson<unknown>("/api/experiments/from-run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          run_id: result.run_id,
+          name: saveName.trim(),
+          description: saveDescription.trim(),
+        } satisfies ExperimentSaveRequest),
       });
-      setSaveMessage("실행 결과를 보고서 메뉴에 저장했습니다.");
-      appendTimeline({
-        title: "보고서 저장 완료",
-        detail: `${saveName.trim()} 이름으로 최근 실행을 저장했습니다.`,
-        status: "connected",
-      });
+      setSaveMessage("현재 실행을 보고서 저장소에 보관했습니다.");
     } catch (requestError) {
-      const message = requestError instanceof Error ? requestError.message : "저장에 실패했습니다.";
-      setSaveMessage(message);
-      appendTimeline({
-        title: "보고서 저장 실패",
-        detail: message,
-        status: "disconnected",
-      });
+      setError(requestError instanceof Error ? requestError.message : "보고서 저장에 실패했습니다.");
     } finally {
       setIsSaving(false);
     }
   }
 
-  function handleToggleAutoTrading(checked: boolean) {
-    setAutoTradingEnabled(checked);
-    if (!settings) {
-      return;
+  const favoriteAgentCards = agentDefinitions.map((agent) => {
+    if (!activeRun) {
+      return { key: agent.key, label: agent.label, meta: "최근 실행 없음", body: "최근 런을 실행하면 이 단계 결과가 요약됩니다." };
     }
-    persistSettings({ ...settings, auto_trading_enabled: checked });
-  }
+    if (agent.key === "data_collection") {
+      return {
+        key: agent.key,
+        label: agent.label,
+        meta: `${activeRun.market_data.length}개 수집`,
+        body: activeRun.market_data[0]
+          ? `${activeRun.market_data[0].symbol} ${activeRun.market_data[0].latest_price} · ${formatMetrics(activeRun.market_data[0].financial_metrics)}`
+          : "수집 데이터 없음",
+      };
+    }
+    if (agent.key === "data_analysis") {
+      return {
+        key: agent.key,
+        label: agent.label,
+        meta: `${activeRun.analysis_signals.length}개 시그널`,
+        body: activeRun.analysis_signals[0]
+          ? `${activeRun.analysis_signals[0].symbol} 총점 ${formatScore(activeRun.analysis_signals[0].total_score)} · ${activeRun.analysis_signals[0].rationale}`
+          : "분석 결과 없음",
+      };
+    }
+    if (agent.key === "report") {
+      return { key: agent.key, label: agent.label, meta: `${activeRun.investment_reports.length}개 보고서`, body: activeRun.investment_reports[0]?.summary || "보고서 결과 없음" };
+    }
+    if (agent.key === "buy_sell") {
+      return { key: agent.key, label: agent.label, meta: `${activeRun.decisions.length}개 판단`, body: activeRun.decisions[0] ? `${activeRun.decisions[0].symbol} ${actionLabel(activeRun.decisions[0].action)} · ${formatScore(activeRun.decisions[0].confidence)}` : "판단 결과 없음" };
+    }
+    if (agent.key === "order_execution") {
+      return { key: agent.key, label: agent.label, meta: `${activeRun.orders.length}개 주문 계획`, body: activeRun.orders[0] ? `${activeRun.orders[0].symbol} ${activeRun.orders[0].should_submit ? "제출 가능" : "차단"} · ${activeRun.orders[0].reason}` : "주문 계획 없음" };
+    }
+    return { key: agent.key, label: agent.label, meta: `${activeRun.evaluation_log.decision_count}개 판단`, body: activeRun.evaluation_log.notes.join(" / ") || "후속 메모 없음" };
+  });
+
+  const workflowGroups = [
+    {
+      title: "데이터 수집 -> 데이터 분석 -> 보고서 작성",
+      meta: activeRun ? `${activeRun.market_data.length} / ${activeRun.analysis_signals.length} / ${activeRun.investment_reports.length}` : "아직 실행 없음",
+      nodes: ["Text", "Model", "Report"],
+    },
+    {
+      title: "보고서 작성 -> 매수/매도 판단 -> 주문 실행",
+      meta: activeRun ? `${activeRun.decisions.length}개 판단 / ${activeRun.orders.length}개 주문` : "아직 실행 없음",
+      nodes: ["Risk", "Decision", "Order"],
+    },
+    {
+      title: "메인 에이전트 -> 정책 가드레일 -> 주문 계획",
+      meta: activeRun ? `${activeRun.mandate_violations.length}개 위반 / ${activeRun.evaluation_log.blocked_order_count}개 차단` : "아직 실행 없음",
+      nodes: ["Main", "Guard", "Plan"],
+    },
+  ];
 
   return (
-    <main className="shell">
-      <section className="hero-panel">
+    <main className="discover-page" id="new-run">
+      {error ? <div className="banner banner-error">{error}</div> : null}
+      {saveMessage ? <div className="banner banner-success">{saveMessage}</div> : null}
+
+      <section className="discover-toolbar-panel">
         <div>
-          <span className="eyebrow">메인화면</span>
-          <h1>메인 에이전트 채팅과 자동매매 승인 허브</h1>
-          <p>
-            채팅으로 메인 에이전트에 지시를 보내고, 자동매매 승인 상태를 확인한 뒤, 같은 화면에서
-            타임라인과 주문 전 보고서를 이어서 확인합니다.
-          </p>
-          <div className="hero-steps">
-            <div className="step-chip">1. 채팅으로 지시</div>
-            <div className="step-chip">2. 워크플로우 실행</div>
-            <div className="step-chip">3. 타임라인과 보고서 확인</div>
-          </div>
+          <span className="discover-eyebrow">Console / Discover</span>
+          <h1>메인 워크플로우 홈</h1>
+          <p>최근 실행, 에이전트별 요약, 저장 전 검토 흐름을 탐색형 레이아웃으로 정리했다.</p>
         </div>
-        <div className="status-card switch-card">
-          <span>자동매매 승인 스위치</span>
-          <strong>{autoTradingEnabled ? "승인됨" : "수동 승인"}</strong>
-          <label className="toggle-field toggle-card">
-            <input
-              checked={autoTradingEnabled}
-              onChange={(event) => handleToggleAutoTrading(event.target.checked)}
-              type="checkbox"
-            />
-            자동매매 승인
-          </label>
-          <small>{result ? runtimeLabel(result.runtime) : "실행 후 런타임이 표시됩니다."}</small>
+        <div className="discover-summary-strip">
+          <div>
+            <span>Active run</span>
+            <strong>{activeRun?.run_id || "없음"}</strong>
+          </div>
+          <div>
+            <span>Runtime</span>
+            <strong>{activeRun?.runtime ? runtimeLabel(activeRun.runtime) : "정보 없음"}</strong>
+          </div>
+          <div>
+            <span>Risk</span>
+            <strong>{riskToleranceLabel(riskTolerance)}</strong>
+          </div>
         </div>
       </section>
 
-      <section className="dashboard-grid workspace-overview-grid">
-        <article className="panel panel-wide command-center-panel">
-          <div className="section-heading compact">
-            <span className="eyebrow">메인 에이전트</span>
-            <h2>채팅과 실행 조건을 한 번에 관리</h2>
-          </div>
-          <div className="command-center-grid">
-            <div className="chat-lane">
-              <div className="chat-panel">
-                <div className="chat-header">
+      <section className="discover-section">
+        <SectionHeader title="Recently viewed workflow runs" count={recentRuns.length} />
+        {recentRuns.length ? (
+          <div className="discover-card-grid">
+            {recentRuns.map((item) => (
+              <button className="discover-card" key={item.run_id} onClick={() => setResult(item.result)} type="button">
+                <div className="discover-card-top">
                   <div>
-                    <h3>메인 에이전트 채팅</h3>
-                    <p>실행 전에는 방향을 주고, 실행 후에는 후속 지시를 바로 반영할 수 있습니다.</p>
+                    <strong>{buildRunHeadline(item.result)}</strong>
+                    <small>{runtimeLabel(item.result.runtime)}</small>
                   </div>
-                  <small>{settings?.auto_apply_chat_followups ? "후속 채팅 자동 재실행" : "설정 페이지에서 자동 재실행 가능"}</small>
                 </div>
-                <div className="chat-transcript">
-                  {chatEntries.length ? (
-                    chatEntries.map((entry) => (
-                      <article className={`chat-bubble chat-bubble-${entry.role}`} key={entry.id}>
-                        <span className="chat-role">{entry.role === "user" ? "나" : entry.role === "assistant" ? "메인 에이전트" : "시스템"}</span>
-                        <p>{entry.content}</p>
-                        <small className="chat-meta">{formatDateTime(entry.timestamp)}</small>
-                      </article>
-                    ))
-                  ) : (
-                    <div className="empty-state compact-empty">
-                      <h3>아직 채팅 기록이 없습니다</h3>
-                      <p>예: “애플 비중은 낮게 보고, 엔비디아는 관찰 종목으로만 남겨줘.”</p>
-                    </div>
-                  )}
+                <span className="discover-card-subtitle">{item.result.run_id}</span>
+                <p>{buildRunSummary(item.result)}</p>
+                <div className="discover-chip-row">
+                  {item.result.symbols.slice(0, 3).map((symbol) => (
+                    <span className="discover-chip" key={symbol}>{symbol}</span>
+                  ))}
+                  <span className="discover-chip">{riskToleranceLabel(item.result.mandate.risk_tolerance)}</span>
                 </div>
-                <form className="chat-compose" onSubmit={handleSendChat}>
-                  <textarea
-                    placeholder="메인 에이전트에게 지시할 내용을 입력하세요"
-                    value={chatDraft}
-                    onChange={(event) => setChatDraft(event.target.value)}
-                  />
-                  <button disabled={isChatLoading || !chatDraft.trim()} type="submit">
-                    {isChatLoading ? "응답 대기 중..." : "채팅 보내기"}
-                  </button>
-                </form>
-              </div>
-            </div>
-
-            <form className="stack-form" onSubmit={handleRun}>
-              <div className="form-section">
-                <div className="form-section-heading">
-                  <h3>실행 기본값</h3>
-                  <p>심볼, 최대 비중, 메인 목표를 먼저 정합니다.</p>
-                </div>
-                <div className="form-grid two-cols">
-                  <label className="field">
-                    <span>심볼</span>
-                    <input value={symbolsInput} onChange={(event) => setSymbolsInput(event.target.value)} />
-                  </label>
-                  <label className="field">
-                    <span>최대 비중</span>
-                    <input
-                      inputMode="decimal"
-                      value={maxPositionWeight}
-                      onChange={(event) => setMaxPositionWeight(event.target.value)}
-                    />
-                  </label>
-                </div>
-                <label className="field">
-                  <span>메인 목표</span>
-                  <textarea value={userPrompt} onChange={(event) => setUserPrompt(event.target.value)} />
-                </label>
-              </div>
-
-              <div className="form-section subtle-section">
-                <div className="form-section-heading">
-                  <h3>세부 제약</h3>
-                  <p>허용/제외 심볼과 리스크 성향, 추가 메모를 설정합니다.</p>
-                </div>
-                <div className="form-grid two-cols">
-                  <label className="field">
-                    <span>허용 심볼</span>
-                    <input value={allowedSymbolsInput} onChange={(event) => setAllowedSymbolsInput(event.target.value)} />
-                  </label>
-                  <label className="field">
-                    <span>제외 심볼</span>
-                    <input value={excludedSymbolsInput} onChange={(event) => setExcludedSymbolsInput(event.target.value)} />
-                  </label>
-                </div>
-                <div className="form-grid two-cols">
-                  <label className="field">
-                    <span>리스크 성향</span>
-                    <select value={riskTolerance} onChange={(event) => setRiskTolerance(event.target.value as RiskTolerance)}>
-                      <option value="low">낮음</option>
-                      <option value="medium">보통</option>
-                      <option value="high">높음</option>
-                    </select>
-                  </label>
-                  <label className="field">
-                    <span>자동매매 승인 상태</span>
-                    <input readOnly value={autoTradingEnabled ? "승인됨" : "수동 승인 필요"} />
-                  </label>
-                </div>
-                <label className="field">
-                  <span>추가 메모</span>
-                  <textarea value={userNotes} onChange={(event) => setUserNotes(event.target.value)} />
-                </label>
-              </div>
-
-              <div className="action-row">
-                <button disabled={!canRun} type="submit">
-                  {isLoading ? "실행 중..." : "워크플로우 실행"}
-                </button>
-                <small>
-                  {canRun ? "채팅 지시와 실행 조건이 준비되었습니다." : "심볼과 최대 비중 형식을 확인하세요."}
-                </small>
-              </div>
-              {error ? <p className="inline-error">{error}</p> : null}
-            </form>
+                <small>{formatDateTime(item.viewed_at)}</small>
+              </button>
+            ))}
           </div>
+        ) : (
+          <div className="empty-panel"><h3>최근 실행 기록이 없습니다</h3><p>새 실행을 시작하면 이 섹션에 카드가 생성됩니다.</p></div>
+        )}
+      </section>
+
+      <section className="discover-section">
+        <SectionHeader title="Favorite agent views" count={favoriteAgentCards.length} />
+        <div className="discover-card-grid">
+          {favoriteAgentCards.map((item) => (
+            <article className="discover-card" key={item.key}>
+              <div className="discover-card-top">
+                <div>
+                  <strong>{item.label}</strong>
+                  <small>{item.meta}</small>
+                </div>
+                <span className="favorite-star">★</span>
+              </div>
+              <span className="discover-card-subtitle">단계 요약</span>
+              <p>{item.body}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="discover-section">
+        <SectionHeader title="Favourite workflow groups" count={workflowGroups.length} />
+        <div className="discover-card-grid discover-card-grid-flow">
+          {workflowGroups.map((group) => (
+            <article className="discover-card discover-card-flow" key={group.title}>
+              <div className="discover-card-top">
+                <div>
+                  <strong>{group.title}</strong>
+                  <small>{group.meta}</small>
+                </div>
+              </div>
+              <div className="mini-flow-canvas">
+                {group.nodes.map((node, index) => (
+                  <div className="mini-flow-node-wrap" key={node}>
+                    <span className="mini-flow-node">{node}</span>
+                    {index < group.nodes.length - 1 ? <span className="mini-flow-line" /> : null}
+                  </div>
+                ))}
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="discover-control-grid">
+        <article className="discover-panel discover-panel-wide">
+          <h3>New workflow run</h3>
+          <form className="discover-form" onSubmit={handleRun}>
+            <div className="discover-form-grid discover-form-grid-3">
+              <label><span>심볼</span><input value={symbolsInput} onChange={(event) => setSymbolsInput(event.target.value)} /></label>
+              <label><span>최대 비중</span><input value={maxPositionWeight} onChange={(event) => setMaxPositionWeight(event.target.value)} /></label>
+              <label><span>리스크</span><select value={riskTolerance} onChange={(event) => setRiskTolerance(event.target.value as RiskTolerance)}><option value="low">낮음</option><option value="medium">보통</option><option value="high">높음</option></select></label>
+            </div>
+            <label><span>메인 목표</span><textarea rows={4} value={userPrompt} onChange={(event) => setUserPrompt(event.target.value)} /></label>
+            <div className="discover-form-grid discover-form-grid-2">
+              <label><span>허용 심볼</span><input value={allowedSymbolsInput} onChange={(event) => setAllowedSymbolsInput(event.target.value)} /></label>
+              <label><span>제외 심볼</span><input value={excludedSymbolsInput} onChange={(event) => setExcludedSymbolsInput(event.target.value)} /></label>
+            </div>
+            <label><span>추가 메모</span><textarea rows={3} value={userNotes} onChange={(event) => setUserNotes(event.target.value)} /></label>
+            <div className="discover-toggle-row">
+              <label><input checked={autoTradingEnabled} onChange={(event) => setAutoTradingEnabled(event.target.checked)} type="checkbox" />자동매매 승인 기본값</label>
+              <label><input checked={applyChatToWorkflow} onChange={(event) => setApplyChatToWorkflow(event.target.checked)} type="checkbox" />후속 대화 재실행 반영</label>
+            </div>
+            <button className="discover-primary-button" disabled={!canRun} type="submit">{isLoading ? "실행 중..." : "실행"}</button>
+          </form>
         </article>
 
-        <aside className="panel secondary-guide-panel">
-          <div className="section-heading compact">
-            <span className="eyebrow">에이전트 상태</span>
-            <h2>러닝중, 연결됨, 연결안됨</h2>
-          </div>
-          <div className="agent-health-grid">
-            {agentDefinitions.map((agent) => (
-              <article className="status-chip" key={agent.key}>
-                <div>
-                  <strong>{agent.label}</strong>
-                  <span>{agent.description}</span>
-                </div>
-                <small>{agentStatusText(result, isLoading, agent.key)}</small>
+        <article className="discover-panel">
+          <h3>Follow-up assistant</h3>
+          <form className="discover-form" onSubmit={handleFollowUp}>
+            <label><span>후속 질문</span><textarea rows={5} value={chatDraft} onChange={(event) => setChatDraft(event.target.value)} /></label>
+            <button className="discover-secondary-button" disabled={!activeRun?.run_id || !chatDraft.trim() || isChatLoading} type="submit">{isChatLoading ? "전송 중..." : "질문 보내기"}</button>
+          </form>
+          <div className="discover-chat-list">
+            {chatEntries.slice(-4).map((entry) => (
+              <article className="discover-chat-item" key={entry.id}>
+                <div><strong>{entry.role === "user" ? "사용자" : entry.role === "assistant" ? "어시스턴트" : "시스템"}</strong><small>{formatDateTime(entry.timestamp)}</small></div>
+                <p>{entry.content}</p>
               </article>
             ))}
           </div>
-          <div className="runtime-block">
-            <span>현재 조건</span>
-            <strong>{symbols.length ? symbols.join(", ") : "입력 필요"}</strong>
-            <small>리스크 {riskToleranceLabel(riskTolerance)} / 최대 비중 {hasValidWeight ? formatPercent(weight) : "형식 확인 필요"}</small>
-          </div>
-          {result ? (
-            <div className="directive-card">
-              <span>메인 에이전트 요약</span>
-              <strong>{result.supervisor_directive.summary || "요약 없음"}</strong>
-              <small>watch: {result.supervisor_directive.watch_symbols.join(", ") || "없음"}</small>
-            </div>
-          ) : null}
-        </aside>
-
-        <article className="panel panel-wide panel-span-2">
-          <div className="section-heading compact">
-            <span className="eyebrow">에이전트 히스토리</span>
-            <h2>자율 실행 타임라인</h2>
-          </div>
-          <div className="timeline-layout">
-            <div className="timeline-list">
-              {timelineEntries.length ? (
-                timelineEntries.map((entry) => (
-                  <article className="timeline-item" key={entry.id}>
-                    <div className={`timeline-dot timeline-dot-${entry.status}`} />
-                    <div className="timeline-content">
-                      <div className="timeline-head">
-                        <strong>{entry.title}</strong>
-                        <span className="timeline-status">{statusLabel(entry.status)}</span>
-                      </div>
-                      <p>{entry.detail}</p>
-                      <small>{formatDateTime(entry.timestamp)}</small>
-                    </div>
-                  </article>
-                ))
-              ) : (
-                <div className="empty-state compact-empty">
-                  <h3>기록된 타임라인이 없습니다</h3>
-                  <p>실행, 채팅, 저장 이벤트가 발생하면 이곳에 순서대로 쌓입니다.</p>
-                </div>
-              )}
-            </div>
-          </div>
         </article>
 
-        <article className="panel panel-wide panel-span-2">
-          <div className="section-heading compact">
-            <span className="eyebrow">주문 전 보고서</span>
-            <h2>데이터 수집, 분석, 보고서 작성 결과를 먼저 검토</h2>
-          </div>
-          {result ? (
-            <>
-              <div className="execution-strip">
-                <article className="execution-step">
-                  <span>데이터 수집</span>
-                  <strong>{result.market_data.length}개</strong>
-                </article>
-                <article className="execution-step">
-                  <span>데이터 분석</span>
-                  <strong>{result.analysis_signals.length}개</strong>
-                </article>
-                <article className="execution-step">
-                  <span>보고서 작성</span>
-                  <strong>{result.investment_reports.length}개</strong>
-                </article>
-                <article className="execution-step">
-                  <span>주문 계획</span>
-                  <strong>{result.orders.length}개</strong>
-                </article>
-              </div>
-              <div className="report-preview-grid">
-                {result.investment_reports.map((report) => (
-                  <article className="report-insight-card" key={report.symbol}>
-                    <div className="report-insight-head">
-                      <div>
-                        <span>{report.symbol}</span>
-                        <strong>{report.risk_approved ? "리스크 승인" : "리스크 보류"}</strong>
-                      </div>
-                      <small>{actionLabel(report.recommended_action_bias)} · {formatScore(report.signal_strength)}</small>
-                    </div>
-                    <p>{report.summary}</p>
-                    <small>최대 비중 {formatPercent(report.max_position_weight)}</small>
-                    <div className="report-points">
-                      <div>
-                        <span>상승 포인트</span>
-                        <small>{report.bull_points.join(" / ") || "없음"}</small>
-                      </div>
-                      <div>
-                        <span>주의 포인트</span>
-                        <small>{report.bear_points.join(" / ") || "없음"}</small>
-                      </div>
-                    </div>
-                    <small className="report-flags">{report.risk_flags.join(" / ") || "리스크 메모 없음"}</small>
-                  </article>
-                ))}
-              </div>
-              <div className="result-columns report-results-columns">
-                <div className="result-panel">
-                  <h3>수집 데이터와 최종 판단</h3>
-                  <div className="result-stack">
-                    <section>
-                      <span>수집 데이터</span>
-                      {result.market_data.map((item) => (
-                        <article className="output-card" key={item.symbol}>
-                          <strong>{item.symbol}</strong>
-                          <p>가격 {item.latest_price}</p>
-                          <small>{item.news_headlines.join(" / ") || "뉴스 없음"}</small>
-                          <small>{formatMetrics(item.financial_metrics)}</small>
-                        </article>
-                      ))}
-                    </section>
-                    <section>
-                      <span>최종 판단</span>
-                      {result.decisions.map((decision) => (
-                        <article className="output-card" key={decision.symbol}>
-                          <strong>{decision.symbol}</strong>
-                          <p>
-                            {actionLabel(decision.action)} · 신뢰도 {formatScore(decision.confidence)}
-                          </p>
-                          <small>{decision.rationale}</small>
-                        </article>
-                      ))}
-                    </section>
-                  </div>
-                </div>
-                <div className="result-panel save-panel">
-                  <h3>보고서 저장</h3>
-                  <p className="panel-helper">현재 실행을 보고서 메뉴에서 다시 보려면 이름을 적고 저장합니다.</p>
-                  <label className="field">
-                    <span>보고서 이름</span>
-                    <input value={saveName} onChange={(event) => setSaveName(event.target.value)} />
-                  </label>
-                  <label className="field">
-                    <span>설명</span>
-                    <textarea value={saveDescription} onChange={(event) => setSaveDescription(event.target.value)} />
-                  </label>
-                  <button disabled={!canSave} onClick={() => void handleSaveExperiment()} type="button">
-                    {isSaving ? "저장 중..." : "최근 런 저장"}
-                  </button>
-                  {saveMessage ? <p className="inline-note">{saveMessage}</p> : null}
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="empty-state">
-              <h3>아직 실행된 런이 없습니다</h3>
-              <p>채팅 또는 실행 조건을 정한 뒤 워크플로우를 실행하면 주문 전 보고서가 이곳에 표시됩니다.</p>
+        <article className="discover-panel">
+          <h3>Save report</h3>
+          <form className="discover-form" onSubmit={handleSaveReport}>
+            <label><span>보고서 이름</span><input value={saveName} onChange={(event) => setSaveName(event.target.value)} /></label>
+            <label><span>설명</span><textarea rows={5} value={saveDescription} onChange={(event) => setSaveDescription(event.target.value)} /></label>
+            <button className="discover-secondary-button" disabled={!canSave} type="submit">{isSaving ? "저장 중..." : "저장"}</button>
+          </form>
+        </article>
+      </section>
+
+      <section className="discover-detail-grid">
+        <article className="discover-panel">
+          <h3>Active summary</h3>
+          {activeRun ? (
+            <div className="active-summary-list">
+              <div><span>메인 요약</span><strong>{buildRunSummary(activeRun)}</strong></div>
+              <div><span>판단</span><strong>{activeRun.decisions.map((item) => `${item.symbol} ${actionLabel(item.action)}`).join(" / ") || "없음"}</strong></div>
+              <div><span>주문 계획</span><strong>{activeRun.orders.map((item) => `${item.symbol} ${item.should_submit ? "submit" : "blocked"}`).join(" / ") || "없음"}</strong></div>
+              <div><span>평가 메모</span><strong>{activeRun.evaluation_log.notes.join(" / ") || "없음"}</strong></div>
             </div>
+          ) : (
+            <div className="empty-panel"><h3>선택된 실행 없음</h3><p>실행 후 요약이 여기에 표시됩니다.</p></div>
+          )}
+        </article>
+        <article className="discover-panel">
+          <h3>Decision resources</h3>
+          {activeRun ? (
+            <div className="resource-mini-grid">
+              <div><span>데이터 수집</span><strong>{activeRun.market_data.length}</strong></div>
+              <div><span>데이터 분석</span><strong>{activeRun.analysis_signals.length}</strong></div>
+              <div><span>보고서 작성</span><strong>{activeRun.investment_reports.length}</strong></div>
+              <div><span>주문 실행</span><strong>{activeRun.orders.length}</strong></div>
+            </div>
+          ) : (
+            <div className="empty-panel"><h3>런 결과 없음</h3><p>실행 후 리소스 카운트가 표시됩니다.</p></div>
           )}
         </article>
       </section>

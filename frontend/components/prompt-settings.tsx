@@ -7,7 +7,6 @@ import {
   AgentPromptSaveResponse,
   FrontendWorkspaceSettings,
   RiskTolerance,
-  agentDefinitions,
   fetchJson,
   loadFrontendWorkspaceSettings,
   saveFrontendWorkspaceSettings,
@@ -15,7 +14,7 @@ import {
 
 export function PromptSettings() {
   const [prompts, setPrompts] = useState<AgentPromptItem[]>([]);
-  const [selectedKey, setSelectedKey] = useState(agentDefinitions[0].key);
+  const [selectedKey, setSelectedKey] = useState("");
   const [prompt, setPrompt] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -69,9 +68,7 @@ export function PromptSettings() {
         body: JSON.stringify({ prompt }),
       });
       setPrompt(response.item.prompt);
-      setPrompts((current) =>
-        current.map((item) => (item.agent_key === response.item.agent_key ? response.item : item)),
-      );
+      setPrompts((current) => current.map((item) => (item.agent_key === response.item.agent_key ? response.item : item)));
       setMessage("선택한 에이전트 프롬프트를 저장했습니다.");
     } catch (requestError) {
       setMessage(requestError instanceof Error ? requestError.message : "프롬프트 저장에 실패했습니다.");
@@ -93,47 +90,49 @@ export function PromptSettings() {
       return;
     }
     saveFrontendWorkspaceSettings(settings);
-    setMessage("메인화면과 계좌 화면에서 사용하는 로컬 설정을 저장했습니다.");
+    setMessage("로컬 워크스페이스 기본값을 저장했습니다.");
   }
 
   return (
-    <main className="shell">
-      <section className="hero-panel compact-hero">
+    <main className="dashboard-page">
+      <section className="page-hero">
         <div>
-          <span className="eyebrow">프롬프트 설정</span>
-          <h1>에이전트 프롬프트와 세부 실행 설정을 조정한다</h1>
-          <p>각 에이전트의 기본 프롬프트를 수정하고, 메인화면에서 불러올 기본 심볼/리스크/채팅 자동반영 설정을 함께 관리합니다.</p>
+          <span className="eyebrow">Settings</span>
+          <h1>에이전트 프롬프트와 프론트 기본값을 하나의 설정 화면에서 관리한다</h1>
+          <p><code>GET /agent-prompts</code>, <code>PUT /agent-prompts/{"{agent_key}"}</code>를 사용하고, 워크스페이스 기본값은 브라우저 로컬 상태에 유지한다.</p>
         </div>
-        <div className="status-card">
-          <span>설정 상태</span>
-          <strong>{selectedPrompt?.label || "프롬프트 없음"}</strong>
+        <div className="hero-sidecard">
+          <span>선택된 프롬프트</span>
+          <strong>{selectedPrompt?.label || "없음"}</strong>
           <small>{selectedPrompt?.source === "default" ? "기본값" : "사용자 저장값"}</small>
         </div>
       </section>
 
-      {message ? <p className="inline-note">{message}</p> : null}
+      {message ? <div className="banner banner-success">{message}</div> : null}
 
-      <section className="settings-layout">
-        <aside className="panel settings-sidebar">
-          <div className="section-heading compact">
-            <span className="eyebrow">에이전트 목록</span>
-            <h2>수정할 프롬프트 선택</h2>
+      <section className="dashboard-grid">
+        <aside className="panel">
+          <div className="section-head">
+            <div>
+              <span className="section-kicker">Prompt list</span>
+              <h2>에이전트 프롬프트</h2>
+            </div>
           </div>
-          <div className="settings-agent-list">
+          <div className="stack-list">
             {prompts.map((item) => (
               <button
+                className={`list-card ${selectedKey === item.agent_key ? "list-card-active" : ""}`}
                 key={item.agent_key}
-                className={`report-card ${selectedKey === item.agent_key ? "report-card-active" : ""}`}
                 onClick={() => setSelectedKey(item.agent_key)}
                 type="button"
               >
                 <strong>{item.label}</strong>
-                <small>{item.source === "default" ? "기본값" : "사용자 저장값"}</small>
+                <span>{item.source === "default" ? "기본값" : "사용자 저장값"}</span>
                 <small>{item.updated_at}</small>
               </button>
             ))}
             {!prompts.length && !isLoading ? (
-              <div className="empty-state compact-empty">
+              <div className="empty-panel compact-empty-panel">
                 <h3>프롬프트가 없습니다</h3>
                 <p>백엔드 프롬프트 API를 확인하세요.</p>
               </div>
@@ -141,37 +140,39 @@ export function PromptSettings() {
           </div>
         </aside>
 
-        <article className="panel report-detail-panel">
-          <div className="section-heading compact">
-            <span className="eyebrow">프롬프트 편집</span>
-            <h2>{selectedPrompt?.label || "선택 필요"}</h2>
+        <article className="panel panel-span-2">
+          <div className="section-head">
+            <div>
+              <span className="section-kicker">Prompt editor</span>
+              <h2>{selectedPrompt?.label || "프롬프트 선택"}</h2>
+            </div>
           </div>
-          <form className="stack-form" onSubmit={handleSavePrompt}>
+          <form className="form-stack" onSubmit={handleSavePrompt}>
             <label className="field">
               <span>프롬프트 본문</span>
-              <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} />
+              <textarea rows={16} value={prompt} onChange={(event) => setPrompt(event.target.value)} />
             </label>
-            <button disabled={isSavingPrompt || isLoading || !selectedPrompt} type="submit">
+            <button className="primary-button" disabled={isSavingPrompt || isLoading || !selectedPrompt} type="submit">
               {isSavingPrompt ? "저장 중..." : "프롬프트 저장"}
             </button>
           </form>
         </article>
+      </section>
 
-        <article className="panel panel-span-2 report-detail-panel">
-          <div className="section-heading compact">
-            <span className="eyebrow">세부 설정</span>
-            <h2>메인화면과 계좌 화면 기본값</h2>
-            <p>이 설정은 현재 브라우저 로컬 스토리지에 저장되며, 별도 서버 계약을 만들지 않습니다.</p>
+      <section className="content-section">
+        <div className="section-head section-head-spaced">
+          <div>
+            <span className="section-kicker">Workspace defaults</span>
+            <h2>프론트 기본값</h2>
           </div>
-          {settings ? (
-            <form className="stack-form" onSubmit={handleSaveLocalSettings}>
-              <div className="form-grid two-cols">
+        </div>
+        {settings ? (
+          <article className="panel">
+            <form className="form-stack" onSubmit={handleSaveLocalSettings}>
+              <div className="field-grid field-grid-2">
                 <label className="field">
                   <span>기본 심볼</span>
-                  <input
-                    value={settings.default_symbols}
-                    onChange={(event) => updateSetting("default_symbols", event.target.value)}
-                  />
+                  <input value={settings.default_symbols} onChange={(event) => updateSetting("default_symbols", event.target.value)} />
                 </label>
                 <label className="field">
                   <span>기본 최대 비중</span>
@@ -181,7 +182,7 @@ export function PromptSettings() {
                   />
                 </label>
               </div>
-              <div className="form-grid two-cols">
+              <div className="field-grid field-grid-2">
                 <label className="field">
                   <span>기본 리스크 성향</span>
                   <select
@@ -202,25 +203,25 @@ export function PromptSettings() {
                   />
                 </label>
               </div>
-              <div className="form-grid two-cols">
-                <label className="toggle-field toggle-card">
+              <div className="toggle-row">
+                <label className="toggle-chip">
                   <input
                     checked={settings.auto_apply_chat_followups}
                     onChange={(event) => updateSetting("auto_apply_chat_followups", event.target.checked)}
                     type="checkbox"
                   />
-                  후속 채팅을 워크플로우에 자동 반영
+                  후속 채팅 자동 반영
                 </label>
-                <label className="toggle-field toggle-card">
+                <label className="toggle-chip">
                   <input
                     checked={settings.auto_trading_enabled}
                     onChange={(event) => updateSetting("auto_trading_enabled", event.target.checked)}
                     type="checkbox"
                   />
-                  자동매매 승인 기본값 활성화
+                  자동매매 승인 기본값
                 </label>
               </div>
-              <div className="form-grid two-cols">
+              <div className="field-grid field-grid-2">
                 <label className="field">
                   <span>계좌 별칭</span>
                   <input value={settings.account_alias} onChange={(event) => updateSetting("account_alias", event.target.value)} />
@@ -230,10 +231,12 @@ export function PromptSettings() {
                   <input value={settings.broker_label} onChange={(event) => updateSetting("broker_label", event.target.value)} />
                 </label>
               </div>
-              <button type="submit">로컬 설정 저장</button>
+              <button className="primary-button" type="submit">
+                로컬 설정 저장
+              </button>
             </form>
-          ) : null}
-        </article>
+          </article>
+        ) : null}
       </section>
     </main>
   );

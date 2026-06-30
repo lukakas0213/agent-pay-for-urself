@@ -273,6 +273,7 @@ class DecisionResponse(BaseModel):
     """Decision workflow result returned by POST /decisions."""
 
     run_id: str = Field(description="Identifier for the stored workflow result.")
+    created_at: str = Field(description="UTC timestamp when the workflow run was stored.")
     symbols: list[str] = Field(description="Symbols received in the request.")
     user_prompt: str = Field(description="Primary natural-language objective for the run.")
     chat_messages: list[str] = Field(

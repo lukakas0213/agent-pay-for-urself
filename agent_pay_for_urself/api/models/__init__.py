@@ -1,6 +1,9 @@
 """Pydantic request and response models exposed by the API."""
 
 from agent_pay_for_urself.api.models.account import (
+    AccountConnectionItem,
+    AccountConnectionRequest,
+    AccountCredentialStatusItem,
     AccountHoldingItem,
     AccountResponse,
     AccountSummaryItem,
@@ -34,6 +37,13 @@ from agent_pay_for_urself.api.models.experiments import (
     ExperimentResponse,
     ExperimentSaveRequest,
 )
+from agent_pay_for_urself.api.models.history import (
+    AgentStatusItem,
+    AnalysisSummaryItem,
+    TimelineEventItem,
+    WorkflowRunDetailResponse,
+    WorkflowRunListItem,
+)
 from agent_pay_for_urself.api.models.interactions import (
     AgentInteractionRequest,
     AgentInteractionResponse,
@@ -48,6 +58,9 @@ from agent_pay_for_urself.api.models.orders import (
 )
 
 __all__ = [
+    "AccountConnectionItem",
+    "AccountConnectionRequest",
+    "AccountCredentialStatusItem",
     "AccountHoldingItem",
     "AccountResponse",
     "AccountSummaryItem",
@@ -62,18 +75,20 @@ __all__ = [
     "AgentPromptOverridesRequest",
     "AgentInteractionRequest",
     "AgentInteractionResponse",
+    "AgentStatusItem",
+    "AnalysisSignalItem",
+    "AnalysisSummaryItem",
+    "DecisionItem",
+    "DecisionRequest",
+    "DecisionResponse",
     "DirectOrderSubmitRequest",
     "DirectOrderSubmitResponse",
+    "EvaluationLogItem",
+    "InvestmentReportItem",
     "LiveOrderSkippedItem",
     "LiveOrderSubmissionItem",
     "LiveOrderSubmitRequest",
     "LiveOrderSubmitResponse",
-    "AnalysisSignalItem",
-    "DecisionItem",
-    "DecisionRequest",
-    "DecisionResponse",
-    "EvaluationLogItem",
-    "InvestmentReportItem",
     "MandateItem",
     "MandateRequest",
     "MandateViolationItem",
@@ -81,5 +96,8 @@ __all__ = [
     "OrderItem",
     "RiskTolerance",
     "SupervisorDirectiveItem",
+    "TimelineEventItem",
     "TradeAction",
+    "WorkflowRunDetailResponse",
+    "WorkflowRunListItem",
 ]

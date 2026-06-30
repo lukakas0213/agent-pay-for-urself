@@ -32,11 +32,14 @@ def to_decision_response(
     run_id: str,
     result: WorkflowResult,
     runtime: RuntimeSummaryItem | None = None,
+    *,
+    created_at: str = "",
 ) -> DecisionResponse:
     """Convert one workflow result into the public API response model."""
 
     return DecisionResponse(
         run_id=run_id,
+        created_at=created_at,
         symbols=list(result.request.symbols),
         user_prompt=result.request.user_prompt,
         chat_messages=list(result.request.chat_messages),

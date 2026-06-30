@@ -1,34 +1,38 @@
 import Link from "next/link";
 
-import { agentNavItems } from "../../lib/workspace";
+import { agentDefinitions } from "../../lib/workspace";
 
 export default function AgentsHubPage() {
   return (
-    <main className="shell">
-      <section className="hero-panel compact-hero">
+    <main className="dashboard-page">
+      <section className="page-hero">
         <div>
-          <span className="eyebrow">에이전트 메뉴</span>
-          <h1>단계별 에이전트를 한곳에서 찾아보고 점검합니다</h1>
-          <p>어떤 단계가 어떤 역할을 하는지 먼저 보고, 필요한 화면으로 바로 이동해 프롬프트와 최근 출력을 확인할 수 있습니다.</p>
+          <span className="eyebrow">Agents</span>
+          <h1>단계별 에이전트를 빠르게 찾아 현재 프롬프트와 출력으로 이동한다</h1>
+          <p>각 단계는 같은 대시보드 디자인 안에서 열리며, 최근 메인 워크플로우 실행 결과를 기준으로 상태를 보여준다.</p>
         </div>
-        <div className="status-card">
-          <span>서브 메뉴</span>
-          <strong>{agentNavItems.length}</strong>
-          <small>각 단계별 화면으로 이동</small>
+        <div className="hero-sidecard">
+          <span>단계 수</span>
+          <strong>{agentDefinitions.length}</strong>
+          <small>데이터 수집부터 로그 평가까지</small>
         </div>
       </section>
 
-      <section className="panel">
-        <div className="section-heading compact">
-          <span className="eyebrow">하위 목차</span>
-          <h2>필요한 단계만 골라 들어가세요</h2>
-          <p>메인 화면에서 실행한 뒤 여기로 오면, 각 단계가 어떤 데이터를 만들었는지 더 자세히 볼 수 있습니다.</p>
+      <section className="content-section">
+        <div className="section-head section-head-spaced">
+          <div>
+            <span className="section-kicker">Workflow stage</span>
+            <h2>에이전트 카탈로그</h2>
+          </div>
         </div>
-        <div className="nav-submenu">
-          {agentNavItems.map((item) => (
-            <Link className="nav-subpill" href={item.href} key={item.href}>
-              <span>{item.label}</span>
-              <small>{item.description}</small>
+        <div className="card-grid card-grid-3">
+          {agentDefinitions.map((item) => (
+            <Link className="info-card interactive-card" href={item.path} key={item.key}>
+              <div className="card-headline">
+                <strong>{item.label}</strong>
+                <span>상세 보기</span>
+              </div>
+              <p>{item.description}</p>
             </Link>
           ))}
         </div>

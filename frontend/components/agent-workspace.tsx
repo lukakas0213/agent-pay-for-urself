@@ -11,9 +11,9 @@ import {
   agentDefinitions,
   fetchJson,
   formatMetrics,
-  normalizeDecisionResponse,
   formatPercent,
   formatScore,
+  normalizeDecisionResponse,
 } from "../lib/workspace";
 
 type Props = {
@@ -46,10 +46,7 @@ function promptSummary(prompt: string) {
 }
 
 export function AgentWorkspace({ agentKey }: Props) {
-  const agent = useMemo(
-    () => agentDefinitions.find((item) => item.key === agentKey) ?? agentDefinitions[0],
-    [agentKey],
-  );
+  const agent = useMemo(() => agentDefinitions.find((item) => item.key === agentKey) ?? agentDefinitions[0], [agentKey]);
   const [prompts, setPrompts] = useState<AgentPromptItem[]>([]);
   const [prompt, setPrompt] = useState("");
   const [updatedAt, setUpdatedAt] = useState("");
@@ -97,7 +94,7 @@ export function AgentWorkspace({ agentKey }: Props) {
       setPrompt(data.item.prompt);
       setUpdatedAt(data.item.updated_at);
       setSource(data.item.source);
-      setMessage("프롬프트가 저장되었습니다.");
+      setMessage("프롬프트를 저장했습니다.");
       const reloaded = await fetchJson<AgentPromptItem[]>("/api/agent-prompts");
       setPrompts(reloaded);
     } catch (requestError) {
@@ -107,135 +104,138 @@ export function AgentWorkspace({ agentKey }: Props) {
     }
   }
 
-  const resultSection = (() => {
+  const resultCards = (() => {
     if (!latestResult) {
-      return (
-        <div className="empty-state compact-empty">
-          <h3>최근 실행 결과가 없습니다</h3>
-          <p>메인 화면에서 워크플로우를 실행하면 여기에서 해당 에이전트의 출력을 확인할 수 있습니다.</p>
-        </div>
-      );
+      return [] as Array<{ title: string; body: string; meta: string }>;
     }
 
     if (agentKey === "data_collection") {
-      return latestResult.market_data.map((item) => (
-        <article className="output-card" key={item.symbol}>
-          <strong>{item.symbol}</strong>
-          <p>{item.latest_price}</p>
-          <small>{item.news_headlines.join(" / ") || "뉴스 없음"}</small>
-          <small>{formatMetrics(item.financial_metrics)}</small>
-        </article>
-      ));
+      return latestResult.market_data.map((item) => ({
+        title: item.symbol,
+        body: item.news_headlines.join(" / ") || "뉴스 없음",
+        meta: `${item.latest_price} / ${formatMetrics(item.financial_metrics)}`,
+      }));
     }
 
     if (agentKey === "data_analysis") {
-      return latestResult.analysis_signals.map((item) => (
-        <article className="output-card" key={item.symbol}>
-          <strong>{item.symbol}</strong>
-          <p>
-            {formatScore(item.total_score)} / {formatScore(item.price_score)} / {formatScore(item.news_score)}
-          </p>
-          <small>{item.rationale}</small>
-        </article>
-      ));
+      return latestResult.analysis_signals.map((item) => ({
+        title: item.symbol,
+        body: item.rationale,
+        meta: `총점 ${formatScore(item.total_score)} / 가격 ${formatScore(item.price_score)}`,
+      }));
     }
 
     if (agentKey === "report") {
-      return latestResult.investment_reports.map((item) => (
-        <article className="output-card" key={item.symbol}>
-          <strong>{item.symbol}</strong>
-          <p>
-            {item.risk_approved ? "리스크 승인" : "리스크 보류"} · {actionLabel(item.recommended_action_bias)}
-          </p>
-          <small>{item.summary}</small>
-          <small>최대 비중 {formatPercent(item.max_position_weight)}</small>
-        </article>
-      ));
+      return latestResult.investment_reports.map((item) => ({
+        title: item.symbol,
+        body: item.summary,
+        meta: `${item.risk_approved ? "리스크 승인" : "리스크 보류"} / 최대 비중 ${formatPercent(item.max_position_weight)}`,
+      }));
     }
 
     if (agentKey === "buy_sell") {
-      return latestResult.decisions.map((item) => (
-        <article className="output-card" key={item.symbol}>
-          <strong>{item.symbol}</strong>
-          <p>
-            {actionLabel(item.action)} · {formatScore(item.confidence)}
-          </p>
-          <small>{item.rationale}</small>
-        </article>
-      ));
+      return latestResult.decisions.map((item) => ({
+        title: item.symbol,
+        body: item.rationale,
+        meta: `${actionLabel(item.action)} / ${formatScore(item.confidence)}`,
+      }));
     }
 
     if (agentKey === "order_execution") {
-      return latestResult.orders.map((item) => (
-        <article className="output-card" key={item.symbol}>
-          <strong>{item.symbol}</strong>
-          <p>{item.should_submit ? "제출 가능" : "제출 불가"} · 수량 {item.quantity}</p>
-          <small>{item.reason}</small>
-        </article>
-      ));
+      return latestResult.orders.map((item) => ({
+        title: item.symbol,
+        body: item.reason,
+        meta: `${item.should_submit ? "제출 가능" : "제출 불가"} / 수량 ${item.quantity}`,
+      }));
     }
 
-    return (
-      <article className="output-card">
-        <strong>평가</strong>
-        <p>
-          판단 {latestResult.evaluation_log.decision_count} / 주문 {latestResult.evaluation_log.order_count} /
-          차단 {latestResult.evaluation_log.blocked_order_count}
-        </p>
-        <small>{latestResult.evaluation_log.notes.join(" / ")}</small>
-      </article>
-    );
+    return [
+      {
+        title: "평가 로그",
+        body: latestResult.evaluation_log.notes.join(" / ") || "후속 메모 없음",
+        meta: `판단 ${latestResult.evaluation_log.decision_count} / 주문 ${latestResult.evaluation_log.order_count}`,
+      },
+    ];
   })();
 
   return (
-    <main className="shell">
-      <section className="hero-panel compact-hero">
+    <main className="dashboard-page">
+      <section className="page-hero">
         <div>
-          <span className="eyebrow">{agent.label}</span>
-          <h1>{agent.description}</h1>
-          <p>현재 저장된 프롬프트를 수정하고, 최근 실행에서 이 에이전트가 낸 결과를 바로 확인합니다.</p>
+          <span className="eyebrow">Agent Detail</span>
+          <h1>{agent.label}</h1>
+          <p>{agent.description} 저장된 프롬프트와 최근 실행 결과를 같은 화면에서 점검한다.</p>
         </div>
-        <div className="status-card">
+        <div className="hero-sidecard">
           <span>프롬프트 상태</span>
-          <strong>{source === "default" ? "기본값" : "저장됨"}</strong>
+          <strong>{source === "default" ? "기본값" : "사용자 저장값"}</strong>
           <small>{updatedAt || "업데이트 전"}</small>
         </div>
       </section>
 
-      <section className="reports-layout">
-        <article className="panel report-detail-panel">
-          <div className="section-heading compact">
-            <span className="eyebrow">프롬프트 편집</span>
-            <h2>현재 프롬프트</h2>
+      {message ? <div className="banner banner-success">{message}</div> : null}
+
+      <section className="dashboard-grid">
+        <article className="panel">
+          <div className="section-head">
+            <div>
+              <span className="section-kicker">Prompt editor</span>
+              <h2>현재 프롬프트</h2>
+            </div>
           </div>
-          <form className="stack-form" onSubmit={handleSave}>
+          <form className="form-stack" onSubmit={handleSave}>
             <label className="field">
               <span>프롬프트</span>
-              <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} />
+              <textarea rows={16} value={prompt} onChange={(event) => setPrompt(event.target.value)} />
             </label>
-            <button disabled={isSaving || isLoading} type="submit">
+            <button className="primary-button" disabled={isSaving || isLoading} type="submit">
               {isSaving ? "저장 중..." : "프롬프트 저장"}
             </button>
           </form>
-          {message ? <p className="inline-note">{message}</p> : null}
-          <div className="prompt-list-preview">
-            <h3>등록된 프롬프트 목록</h3>
-            {prompts.map((item) => (
-              <article className={`prompt-preview ${item.agent_key === agentKey ? "prompt-preview-active" : ""}`} key={item.agent_key}>
-                <strong>{item.label}</strong>
-                <small>{promptSummary(item.prompt)}</small>
-              </article>
-            ))}
-          </div>
         </article>
 
-        <article className="panel report-detail-panel">
-          <div className="section-heading compact">
-            <span className="eyebrow">러닝 출력</span>
-            <h2>최근 실행에서의 에이전트 결과</h2>
+        <article className="panel panel-span-2">
+          <div className="section-head">
+            <div>
+              <span className="section-kicker">Latest output</span>
+              <h2>최근 실행에서의 출력</h2>
+            </div>
           </div>
-          {resultSection}
+          {resultCards.length ? (
+            <div className="card-grid card-grid-2">
+              {resultCards.map((item) => (
+                <article className="info-card" key={`${item.title}-${item.meta}`}>
+                  <strong>{item.title}</strong>
+                  <span className="card-meta">{item.meta}</span>
+                  <p>{item.body}</p>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-panel">
+              <h3>최근 실행 결과가 없습니다</h3>
+              <p>메인 화면에서 워크플로우를 실행하면 해당 에이전트의 결과가 여기에 표시됩니다.</p>
+            </div>
+          )}
         </article>
+      </section>
+
+      <section className="content-section">
+        <div className="section-head section-head-spaced">
+          <div>
+            <span className="section-kicker">Prompt registry</span>
+            <h2>등록된 프롬프트 미리보기</h2>
+          </div>
+        </div>
+        <div className="card-grid card-grid-3">
+          {prompts.map((item) => (
+            <article className={`info-card ${item.agent_key === agentKey ? "selected-card" : ""}`} key={item.agent_key}>
+              <strong>{item.label}</strong>
+              <span className="card-meta">{item.source === "default" ? "기본값" : "사용자 저장값"}</span>
+              <p>{promptSummary(item.prompt)}</p>
+            </article>
+          ))}
+        </div>
       </section>
     </main>
   );

@@ -1,6 +1,45 @@
 """Request and response models for broker account lookups."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+
+class AccountConnectionRequest(BaseModel):
+    """Broker account identifiers written by the user."""
+
+    alias: str = Field(default="메인 계좌", max_length=80)
+    broker: str = Field(default="kis_mock", max_length=40)
+    account_number: str = Field(default="", max_length=40)
+    account_product_code: str = Field(default="01", max_length=8)
+
+    @field_validator("alias", "broker", "account_number", "account_product_code")
+    @classmethod
+    def trim_value(cls, value: str) -> str:
+        return value.strip()
+
+
+class AccountConnectionItem(BaseModel):
+    """Current persisted account connection settings."""
+
+    alias: str = Field(description="Display alias for the connected account.")
+    broker: str = Field(description="Broker key used for the current connection.")
+    account_number: str = Field(description="Editable account number used for lookups.")
+    account_product_code: str = Field(description="Editable product code used for lookups.")
+
+
+class AccountCredentialStatusItem(BaseModel):
+    """Safe view of whether broker credentials are available from env."""
+
+    broker_adapter: str = Field(description="Resolved runtime broker adapter key.")
+    uses_env_credentials: bool = Field(description="Whether API credentials come from env.")
+    has_app_key: bool = Field(description="Whether the runtime app key is configured.")
+    has_app_secret: bool = Field(description="Whether the runtime app secret is configured.")
+    ready_for_account_lookup: bool = Field(
+        description="Whether env credentials plus account identifiers can query holdings."
+    )
+    app_key_hint: str | None = Field(
+        default=None,
+        description="Masked app key hint safe to render in the frontend.",
+    )
 
 
 class AccountHoldingItem(BaseModel):
@@ -31,13 +70,19 @@ class AccountSummaryItem(BaseModel):
 
 
 class AccountResponse(BaseModel):
-    """Broker account snapshot exposed by GET /account."""
+    """Broker account snapshot exposed by the account endpoints."""
 
     available: bool = Field(description="Whether the account snapshot could be loaded.")
     broker: str = Field(description="Broker adapter name used for the lookup.")
     account_masked: str | None = Field(
         default=None,
         description="Masked account number when the broker exposes one.",
+    )
+    connection: AccountConnectionItem = Field(
+        description="Current persisted broker account connection settings."
+    )
+    credential_status: AccountCredentialStatusItem = Field(
+        description="Safe broker credential availability summary."
     )
     summary: AccountSummaryItem | None = Field(
         default=None,
