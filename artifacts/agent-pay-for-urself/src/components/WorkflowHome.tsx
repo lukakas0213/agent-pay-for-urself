@@ -24,6 +24,7 @@ type ExperimentSaveRequest = {
   run_id: string;
   name: string;
   description: string;
+  result: DecisionResponse;
 };
 
 type ChatEntry = {
@@ -351,6 +352,7 @@ export function WorkflowHome() {
           run_id: result.run_id,
           name: saveName.trim(),
           description: saveDescription.trim(),
+          result,
         } satisfies ExperimentSaveRequest),
       });
       setSaveMessage("현재 실행을 보고서 저장소에 보관했습니다.");
