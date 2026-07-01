@@ -18,10 +18,10 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "agent-pay-for-urself"
+args = "Start application"
 
 [[workflows.workflow]]
-name = "agent-pay-for-urself"
+name = "Start application"
 author = "agent"
 
 [workflows.workflow.metadata]
@@ -29,7 +29,7 @@ outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "PORT=23827 BASE_PATH=/ pnpm --filter @workspace/agent-pay-for-urself run dev"
+args = "PORT=8080 pnpm --filter @workspace/api-server run dev & PORT=23827 BASE_PATH=/ pnpm --filter @workspace/agent-pay-for-urself run dev"
 waitForPort = 23827
 
 [agent]
