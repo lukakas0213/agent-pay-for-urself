@@ -1,95 +1,79 @@
 import { Router, type IRouter } from "express";
+import { runWorkflow } from "../engine/orchestrator";
+import type { InvestmentMandate, RiskTolerance } from "../engine/schemas";
 
 const router: IRouter = Router();
 
 router.post("/decisions", (req, res) => {
   const body = req.body as Record<string, unknown>;
-  const symbols: string[] = Array.isArray(body.symbols) ? (body.symbols as string[]) : [];
+
+  const symbols: string[] = Array.isArray(body.symbols)
+    ? (body.symbols as unknown[]).map(String).filter(Boolean)
+    : [];
+
+  const maxPositionWeight =
+    typeof body.max_position_weight === "number" ? body.max_position_weight : 0.2;
+
   const userPrompt = typeof body.user_prompt === "string" ? body.user_prompt : "";
+  const chatMessages: string[] = Array.isArray(body.chat_messages)
+    ? (body.chat_messages as unknown[]).map(String)
+    : [];
 
-  const runId = `run-${Date.now()}`;
+  let mandate: InvestmentMandate | null = null;
+  if (body.mandate && typeof body.mandate === "object") {
+    const m = body.mandate as Record<string, unknown>;
+    mandate = {
+      objective:
+        typeof m.objective === "string"
+          ? m.objective
+          : userPrompt || "Evaluate requested equity symbols conservatively.",
+      allowed_symbols: Array.isArray(m.allowed_symbols)
+        ? (m.allowed_symbols as unknown[]).map(String)
+        : [],
+      excluded_symbols: Array.isArray(m.excluded_symbols)
+        ? (m.excluded_symbols as unknown[]).map(String)
+        : [],
+      max_position_weight:
+        typeof m.max_position_weight === "number" ? m.max_position_weight : maxPositionWeight,
+      max_order_notional:
+        typeof m.max_order_notional === "number" ? m.max_order_notional : null,
+      min_cash_weight:
+        typeof m.min_cash_weight === "number" ? m.min_cash_weight : null,
+      risk_tolerance:
+        typeof m.risk_tolerance === "string"
+          ? (m.risk_tolerance as RiskTolerance)
+          : "medium",
+      requires_approval_for_live_orders:
+        typeof m.requires_approval_for_live_orders === "boolean"
+          ? m.requires_approval_for_live_orders
+          : true,
+      user_notes: typeof m.user_notes === "string" ? m.user_notes : "",
+    };
+  }
 
-  res.json({
-    run_id: runId,
+  const promptOverrides: Record<string, string> = {};
+  if (body.prompt_overrides && typeof body.prompt_overrides === "object") {
+    const overrides = body.prompt_overrides as Record<string, unknown>;
+    for (const [k, v] of Object.entries(overrides)) {
+      if (typeof v === "string") promptOverrides[k] = v;
+    }
+  }
+
+  if (symbols.length === 0 && !userPrompt.trim()) {
+    res.status(422).json({ error: "symbols 또는 user_prompt 중 하나 이상을 입력하세요." });
+    return;
+  }
+
+  const result = runWorkflow({
     symbols,
+    max_position_weight: maxPositionWeight,
+    mandate,
     user_prompt: userPrompt,
-    chat_messages: Array.isArray(body.chat_messages) ? body.chat_messages : [],
-    runtime: {
-      data_mode: "mock",
-      llm_mode: "stub",
-      model_name: null,
-      agent_models: null,
-      live_order_enabled: false,
-    },
-    mandate: body.mandate ?? {
-      objective: userPrompt,
-      allowed_symbols: [],
-      excluded_symbols: [],
-      max_position_weight: 0.2,
-      max_order_notional: null,
-      min_cash_weight: null,
-      risk_tolerance: "medium",
-      requires_approval_for_live_orders: true,
-      user_notes: "",
-    },
-    supervisor_directive: {
-      objective: userPrompt,
-      focus_symbols: symbols,
-      watch_symbols: [],
-      guidance: ["백엔드 AI 연동 전 목 응답입니다."],
-      summary: `${symbols.join(", ")} 종목에 대한 분석을 준비 중입니다. 실제 AI 백엔드 연동 후 결과가 채워집니다.`,
-    },
-    market_data: symbols.map((symbol) => ({
-      symbol,
-      latest_price: 100.0,
-      broker_exchange_code: null,
-      news_headlines: ["백엔드 연동 후 실제 뉴스가 표시됩니다."],
-      financial_metrics: { pe_ratio: 20.0, market_cap: 1e9 },
-    })),
-    analysis_signals: symbols.map((symbol) => ({
-      symbol,
-      price_score: 0.5,
-      news_score: 0.5,
-      financial_score: 0.5,
-      total_score: 0.5,
-      rationale: "목 분석: 실제 AI 백엔드 연동 후 근거가 채워집니다.",
-    })),
-    investment_reports: symbols.map((symbol) => ({
-      symbol,
-      summary: `${symbol} 종목 목 보고서. 실제 AI 백엔드 연동 후 내용이 채워집니다.`,
-      bull_points: ["AI 백엔드 연동 후 강세 포인트가 추가됩니다."],
-      bear_points: ["AI 백엔드 연동 후 약세 포인트가 추가됩니다."],
-      risk_flags: [],
-      risk_approved: true,
-      max_position_weight: 0.2,
-      recommended_action_bias: "HOLD",
-      signal_strength: 0.5,
-      rationale: "목 보고서 근거.",
-    })),
-    decisions: symbols.map((symbol) => ({
-      symbol,
-      action: "HOLD",
-      confidence: 0.5,
-      rationale: "목 판단: AI 백엔드 연동 후 실제 판단이 채워집니다.",
-      risk_approved: true,
-    })),
-    orders: symbols.map((symbol) => ({
-      symbol,
-      action: "HOLD",
-      quantity: 0,
-      broker_exchange_code: null,
-      limit_price: null,
-      should_submit: false,
-      reason: "목 주문 계획: 자동매매 미연동.",
-    })),
-    evaluation_log: {
-      decision_count: symbols.length,
-      order_count: 0,
-      blocked_order_count: symbols.length,
-      notes: ["백엔드 AI 미연동 상태입니다. 목 응답이 반환됩니다."],
-    },
-    mandate_violations: [],
+    chat_messages: chatMessages,
+    prompt_overrides: promptOverrides,
   });
+
+  res.json(result);
 });
 
 export default router;
