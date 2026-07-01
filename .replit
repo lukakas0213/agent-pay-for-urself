@@ -11,6 +11,27 @@ env = { "CI" = "true" }
 [workflows]
 runButton = "Project"
 
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "agent-pay-for-urself"
+
+[[workflows.workflow]]
+name = "agent-pay-for-urself"
+author = "agent"
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "PORT=23827 BASE_PATH=/ pnpm --filter @workspace/agent-pay-for-urself run dev"
+waitForPort = 23827
+
 [agent]
 stack = "PNPM_WORKSPACE"
 expertMode = true
