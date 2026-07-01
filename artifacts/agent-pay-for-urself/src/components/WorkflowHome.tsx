@@ -44,6 +44,30 @@ const RESULT_STORAGE_KEY = "latest-workflow-result";
 const CHAT_STORAGE_KEY = "workflow-chat-history";
 const RECENT_RUNS_STORAGE_KEY = "workflow-recent-runs";
 
+const WORKFLOW_GROUPS = [
+  {
+    id: "analysis-pipeline",
+    title: "분석 파이프라인",
+    badge: "기본",
+    description: "데이터 수집부터 보고서 작성까지 핵심 분석 흐름",
+    stages: ["데이터 수집", "데이터 분석", "보고서 작성"],
+  },
+  {
+    id: "decision-pipeline",
+    title: "의사결정 파이프라인",
+    badge: "주문",
+    description: "보고서 기반 매수/매도 판단 및 주문 실행 흐름",
+    stages: ["보고서 작성", "매수/매도 판단", "주문 실행"],
+  },
+  {
+    id: "full-pipeline",
+    title: "전체 워크플로우",
+    badge: "전체",
+    description: "메인 에이전트 정책 검토부터 주문 계획 수립까지",
+    stages: ["메인 에이전트", "정책 가드레일", "주문 계획"],
+  },
+];
+
 function buildDecisionRequest(
   symbols: string[],
   maxPositionWeight: number,
@@ -350,6 +374,33 @@ export function WorkflowHome() {
                 <p className="card-subtitle">{item.meta}</p>
                 <p style={{ fontSize: 13, color: 'var(--text-primary)' }}>{item.body}</p>
              </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="mb-8">
+        <h2 className="section-title">Favourite Workflow Groups</h2>
+        <div className="grid-3">
+          {WORKFLOW_GROUPS.map((group) => (
+            <div className="flow-card" key={group.id}>
+              <div className="flex-row justify-between mb-6">
+                <h3 className="card-title" style={{ marginBottom: 0 }}>{group.title}</h3>
+                <span className="badge badge-info">{group.badge}</span>
+              </div>
+              <p className="card-subtitle" style={{ marginBottom: 0 }}>{group.description}</p>
+              <div className="flow-canvas">
+                {group.stages.map((stage, idx) => (
+                  <div key={stage} style={{ display: 'flex', alignItems: 'center' }}>
+                    <div className="flow-node">
+                      <div className={`flow-node-box${idx === 0 ? ' accent' : ''}`}>{stage}</div>
+                    </div>
+                    {idx < group.stages.length - 1 && (
+                      <span className="flow-arrow">→</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       </div>
