@@ -1,5 +1,4 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-
 import {
   AccountResponse,
   FrontendWorkspaceSettings,
@@ -20,8 +19,6 @@ export function AccountOverview() {
   const [brokerLabel, setBrokerLabel] = useState("한국투자증권");
   const [snapshot, setSnapshot] = useState<AccountResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const stored = loadFrontendWorkspaceSettings();
@@ -35,12 +32,11 @@ export function AccountOverview() {
 
   async function loadAccount() {
     setIsLoading(true);
-    setError(null);
     try {
       const data = await fetchJson<AccountResponse>("/api/account");
       setSnapshot(data);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "계좌를 불러오지 못했습니다.");
+      console.error(requestError);
     } finally {
       setIsLoading(false);
     }
@@ -48,10 +44,8 @@ export function AccountOverview() {
 
   function handleApplyConnection(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!settings) {
-      return;
-    }
-    const nextSettings: FrontendWorkspaceSettings = {
+    if (!settings) return;
+    const nextSettings = {
       ...settings,
       account_alias: accountAlias.trim() || "모의투자 계좌",
       account_number: accountNumber.trim(),
@@ -60,161 +54,75 @@ export function AccountOverview() {
     };
     setSettings(nextSettings);
     saveFrontendWorkspaceSettings(nextSettings);
-    setMessage("계좌 입력값을 현재 브라우저 워크스페이스에 저장했습니다.");
+    alert("저장되었습니다.");
   }
 
   const summary = snapshot?.summary;
   const holdings = snapshot?.holdings ?? [];
   const isAvailable = snapshot?.available ?? false;
   const totalEvaluation = summary?.total_evaluation_amount ?? 0;
-  const holdingsWithWeight = useMemo(
-    () =>
-      holdings.map((holding) => ({
-        ...holding,
-        weight: totalEvaluation > 0 ? holding.market_value / totalEvaluation : 0,
-      })),
-    [holdings, totalEvaluation],
-  );
 
   return (
-    <main className="dashboard-page">
-      <section className="page-hero">
-        <div>
-          <span className="eyebrow">Account</span>
-          <h1>계좌 연결 입력과 실계좌 스냅샷을 운영 패널 형태로 본다</h1>
-          <p><code>GET /account</code> 응답을 예수금, 총평가금액, 보유 종목 카드와 표에 그대로 바인딩한다.</p>
-        </div>
-        <div className="hero-sidecard">
-          <span>조회 상태</span>
-          <strong>{isLoading ? "불러오는 중" : isAvailable ? "조회 가능" : "조회 불가"}</strong>
-          <small>{snapshot?.broker || brokerLabel}</small>
-          <small>{snapshot?.account_masked || accountNumber || "계좌 번호 미입력"}</small>
-        </div>
-      </section>
+    <div>
+      <div className="mb-8">
+        <h1 className="section-title">계좌 상태</h1>
+        <p className="card-subtitle">실시간 브로커 연결 정보와 보유 종목 현황을 확인합니다.</p>
+      </div>
 
-      {error ? <div className="banner banner-error">{error}</div> : null}
-      {message ? <div className="banner banner-success">{message}</div> : null}
-
-      <section className="dashboard-grid">
-        <article className="panel">
-          <div className="section-head">
-            <div>
-              <span className="section-kicker">Connection</span>
-              <h2>브로커 연결 정보</h2>
+      <div className="two-panel mb-8">
+        <div className="card">
+          <h2 className="card-title mb-6">브로커 연결 정보</h2>
+          <form onSubmit={handleApplyConnection}>
+            <div className="form-group">
+              <label className="form-label">계좌 별칭</label>
+              <input className="input-field" value={accountAlias} onChange={(e) => setAccountAlias(e.target.value)} />
             </div>
-          </div>
-          <form className="form-stack" onSubmit={handleApplyConnection}>
-            <label className="field">
-              <span>계좌 별칭</span>
-              <input value={accountAlias} onChange={(event) => setAccountAlias(event.target.value)} />
-            </label>
-            <label className="field">
-              <span>브로커</span>
-              <input value={brokerLabel} onChange={(event) => setBrokerLabel(event.target.value)} />
-            </label>
-            <div className="field-grid field-grid-2">
-              <label className="field">
-                <span>계좌 번호</span>
-                <input value={accountNumber} onChange={(event) => setAccountNumber(event.target.value)} />
-              </label>
-              <label className="field">
-                <span>상품 코드</span>
-                <input value={accountProductCode} onChange={(event) => setAccountProductCode(event.target.value)} />
-              </label>
+            <div className="form-group">
+              <label className="form-label">브로커</label>
+              <input className="input-field" value={brokerLabel} onChange={(e) => setBrokerLabel(e.target.value)} />
             </div>
-            <button className="primary-button" type="submit">
-              연결 정보 저장
-            </button>
+            <div className="form-group">
+              <label className="form-label">계좌 번호</label>
+              <input className="input-field" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} />
+            </div>
+            <button className="btn btn-primary mt-4" style={{ width: '100%' }}>연결 정보 저장</button>
           </form>
-        </article>
+        </div>
 
-        <article className="panel panel-span-2">
-          <div className="section-head">
+        <div className="card">
+          <div className="flex-row justify-between mb-6">
+            <h2 className="card-title" style={{ marginBottom: 0 }}>{accountAlias}</h2>
+            <button className="btn btn-secondary" onClick={() => void loadAccount()}>새로고침</button>
+          </div>
+          <div className="grid-4">
             <div>
-              <span className="section-kicker">Summary</span>
-              <h2>{accountAlias}</h2>
+              <div className="form-label">예수금</div>
+              <div style={{ fontSize: 18, fontWeight: 600 }}>{summary ? formatAmount(summary.cash_balance) : "-"}</div>
             </div>
-            <button className="secondary-button" onClick={() => void loadAccount()} type="button">
-              새로고침
-            </button>
-          </div>
-          <div className="stat-grid stat-grid-4">
-            <div className="stat-card">
-              <span>예수금</span>
-              <strong>{summary ? formatAmount(summary.cash_balance) : "-"}</strong>
+            <div>
+              <div className="form-label">총매입금액</div>
+              <div style={{ fontSize: 18, fontWeight: 600 }}>{summary ? formatAmount(summary.total_purchase_amount) : "-"}</div>
             </div>
-            <div className="stat-card">
-              <span>총매입금액</span>
-              <strong>{summary ? formatAmount(summary.total_purchase_amount) : "-"}</strong>
+            <div>
+              <div className="form-label">총평가금액</div>
+              <div style={{ fontSize: 18, fontWeight: 600 }}>{summary ? formatAmount(summary.total_evaluation_amount) : "-"}</div>
             </div>
-            <div className="stat-card">
-              <span>총평가금액</span>
-              <strong>{summary ? formatAmount(summary.total_evaluation_amount) : "-"}</strong>
-            </div>
-            <div className="stat-card">
-              <span>총수익률</span>
-              <strong>{summary ? formatPercentValue(summary.total_profit_loss_rate) : "-"}</strong>
+            <div>
+              <div className="form-label">총수익률</div>
+              <div style={{ fontSize: 18, fontWeight: 600, color: summary && summary.total_profit_loss_rate >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                {summary ? formatPercentValue(summary.total_profit_loss_rate) : "-"}
+              </div>
             </div>
           </div>
-          <p className="support-text">{snapshot?.message || "계좌 상태를 불러오면 실제 보유 비중과 손익이 여기에 나타난다."}</p>
-        </article>
-      </section>
-
-      <section className="content-section">
-        <div className="section-head section-head-spaced">
-          <div>
-            <span className="section-kicker">Holdings cards</span>
-            <h2>보유 종목 카드</h2>
-          </div>
-          <small>{holdings.length ? `${holdings.length}개 종목` : "보유 종목 없음"}</small>
+          {snapshot?.message && <p className="card-subtitle mt-4">{snapshot.message}</p>}
         </div>
-        {holdings.length ? (
-          <div className="card-grid card-grid-3">
-            {holdingsWithWeight.map((holding) => (
-              <article className="info-card" key={holding.symbol}>
-                <div className="card-headline">
-                  <strong>{holding.name}</strong>
-                  <span>{holding.symbol}</span>
-                </div>
-                <div className="stat-grid stat-grid-2 compact-stat-grid">
-                  <div className="stat-card">
-                    <span>평가금액</span>
-                    <strong>{formatAmount(holding.market_value)}</strong>
-                  </div>
-                  <div className="stat-card">
-                    <span>보유 비중</span>
-                    <strong>{formatPercentValue(holding.weight)}</strong>
-                  </div>
-                  <div className="stat-card">
-                    <span>손익</span>
-                    <strong className={holding.profit_loss >= 0 ? "positive" : "negative"}>{formatSignedAmount(holding.profit_loss)}</strong>
-                  </div>
-                  <div className="stat-card">
-                    <span>수익률</span>
-                    <strong className={holding.profit_loss_rate >= 0 ? "positive" : "negative"}>{formatPercentValue(holding.profit_loss_rate)}</strong>
-                  </div>
-                </div>
-              </article>
-            ))}
-          </div>
-        ) : (
-          <div className="empty-panel">
-            <h3>{isAvailable ? "보유 종목이 없습니다" : "계좌 상태를 불러오지 못했습니다"}</h3>
-            <p>{snapshot?.message || "브로커 연결과 환경 변수를 점검하세요."}</p>
-          </div>
-        )}
-      </section>
+      </div>
 
-      <section className="content-section">
-        <div className="section-head section-head-spaced">
-          <div>
-            <span className="section-kicker">Holdings table</span>
-            <h2>보유 종목 상세 표</h2>
-          </div>
-        </div>
+      <div className="card">
+        <h2 className="card-title mb-6">보유 종목 테이블</h2>
         {holdings.length ? (
-          <div className="table-panel">
-            <table className="data-table">
+          <div className="table-wrapper">
+            <table className="table">
               <thead>
                 <tr>
                   <th>종목</th>
@@ -230,22 +138,27 @@ export function AccountOverview() {
                 {holdings.map((holding) => (
                   <tr key={holding.symbol}>
                     <td>
-                      <strong>{holding.name}</strong>
-                      <small>{holding.symbol}</small>
+                      <div style={{ fontWeight: 600 }}>{holding.name}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{holding.symbol}</div>
                     </td>
                     <td>{formatAmount(holding.quantity)}</td>
                     <td>{formatPrice(holding.average_price)}</td>
                     <td>{formatPrice(holding.current_price)}</td>
                     <td>{formatAmount(holding.market_value)}</td>
-                    <td className={holding.profit_loss >= 0 ? "positive" : "negative"}>{formatSignedAmount(holding.profit_loss)}</td>
-                    <td className={holding.profit_loss_rate >= 0 ? "positive" : "negative"}>{formatPercentValue(holding.profit_loss_rate)}</td>
+                    <td style={{ color: holding.profit_loss >= 0 ? 'var(--success)' : 'var(--danger)' }}>{formatSignedAmount(holding.profit_loss)}</td>
+                    <td style={{ color: holding.profit_loss_rate >= 0 ? 'var(--success)' : 'var(--danger)' }}>{formatPercentValue(holding.profit_loss_rate)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        ) : null}
-      </section>
-    </main>
+        ) : (
+          <div className="empty-state">
+            <h3>{isAvailable ? "보유 종목이 없습니다" : "계좌 정보를 불러올 수 없습니다"}</h3>
+            <p>API 설정 및 연결 상태를 확인해주세요.</p>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

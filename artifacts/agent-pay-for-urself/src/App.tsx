@@ -1,5 +1,5 @@
 import { Switch, Route, Router as WouterRouter } from "wouter";
-import { SiteNav } from "./components/SiteNav";
+import { SiteNav, TopHeader } from "./components/SiteNav";
 import { WorkflowHome } from "./components/WorkflowHome";
 import { AccountOverview } from "./components/AccountOverview";
 import { WorkflowReports } from "./components/WorkflowReports";
@@ -10,34 +10,29 @@ import "./styles.css";
 
 function AgentsIndex() {
   return (
-    <main className="dashboard-page">
-      <section className="page-hero">
-        <div>
-          <span className="eyebrow">Agents</span>
-          <h1>에이전트 목록</h1>
-          <p>각 에이전트를 선택해 프롬프트와 최근 실행 결과를 확인하세요.</p>
-        </div>
-      </section>
-      <div className="card-grid card-grid-3">
+    <div>
+      <div className="mb-8">
+        <h1 className="section-title">에이전트 목록</h1>
+        <p className="card-subtitle">각 에이전트를 선택해 프롬프트와 최근 실행 결과를 확인하세요.</p>
+      </div>
+      <div className="grid-3">
         {agentDefinitions.map((agent) => (
-          <a className="info-card" href={agent.path} key={agent.key} style={{ cursor: "pointer" }}>
-            <strong>{agent.label}</strong>
-            <p>{agent.description}</p>
+          <a className="card interactive" href={agent.path} key={agent.key}>
+            <h3 className="card-title">{agent.label}</h3>
+            <p className="card-subtitle" style={{ marginBottom: 0 }}>{agent.description}</p>
           </a>
         ))}
       </div>
-    </main>
+    </div>
   );
 }
 
 function NotFound() {
   return (
-    <main className="dashboard-page">
-      <div className="empty-panel">
-        <h3>페이지를 찾을 수 없습니다</h3>
-        <p>요청하신 경로가 존재하지 않습니다.</p>
-      </div>
-    </main>
+    <div className="empty-state">
+      <h3>페이지를 찾을 수 없습니다</h3>
+      <p>요청하신 경로가 존재하지 않습니다.</p>
+    </div>
   );
 }
 
@@ -65,10 +60,11 @@ function Router() {
 function App() {
   return (
     <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-      <div className="app-shell">
+      <div className="app-container">
         <SiteNav />
-        <div className="app-main">
-          <div className="app-content">
+        <div className="main-area">
+          <TopHeader />
+          <div className="content">
             <Router />
           </div>
         </div>
