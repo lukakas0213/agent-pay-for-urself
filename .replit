@@ -29,8 +29,7 @@ outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "PORT=8080 pnpm --filter @workspace/api-server run dev & PORT=23827 BASE_PATH=/ API_PORT=8080 pnpm --filter @workspace/agent-pay-for-urself run dev"
-waitForPort = 23827
+args = "echo 'Services run via individual artifact workflows. See: artifacts/agent-pay-for-urself: web and artifacts/api-server: API Server'"
 
 [agent]
 stack = "PNPM_WORKSPACE"
