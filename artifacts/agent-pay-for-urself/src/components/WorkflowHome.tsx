@@ -322,6 +322,7 @@ export function WorkflowHome() {
           run_id: activeRun.run_id,
           message: userMessage,
           apply_to_workflow: applyChatToWorkflow,
+          current_result: activeRun,
         }),
       });
       appendChat({ role: "assistant", content: response.reply });
