@@ -4,7 +4,7 @@
 
 * The current implementation is a minimum workflow skeleton.
 * Live market data can now be enabled through a Yahoo Finance provider, and a Korea Investment mock broker adapter can be configured for overseas paper-trading submission while durable persistent storage remains unwired.
-* Workflow results are currently stored only in an in-memory repository so console follow-up requests can resolve a prior run by `run_id`.
+* Workflow results are stored in an in-memory run repository for immediate follow-up interactions, and the public decision payload is also persisted to a local JSON history store for history and reports screens.
 * Each workflow agent can optionally route through a shared LLM template layer backed by OpenAI Responses API, and the runtime can assign a different model per agent.
 * `MainAgent` owns the user mandate for each run, interprets the primary user prompt and follow-up chat through the shared LLM layer when enabled, and enforces the resulting operating boundary through `PolicyGuardrail`.
 * The FastAPI layer configures a shared console handler for the `agent_pay_for_urself` namespace so request start/completion and workflow/order completion logs are visible in the CLI.
@@ -72,6 +72,7 @@ flowchart LR
 * `agent_pay_for_urself/api/mappers/` converts internal workflow dataclasses into API responses.
 * `agent_pay_for_urself/api/services/` contains API-facing workflow and console assistant logic.
 * `/console/interactions` is the primary console-assistant endpoint and can optionally append a follow-up natural-language instruction to a stored run before rerunning the workflow.
+* `/runs` and `/runs/{run_id}` expose durable run history derived from stored public workflow payloads.
 * `/experiments` runs and stores Web UI experiment-lab requests with experiment metadata, decision input, prompt overrides, runtime summary, and workflow result.
 * `/agent/interactions` remains as a deprecated compatibility alias.
 * The frontend is built as a static export for Cloudflare Pages. Local development keeps the `/api/:path*` rewrite, while production requests use the build-time `NEXT_PUBLIC_API_BASE_URL` value.
@@ -111,8 +112,9 @@ flowchart LR
 
 ### Persistence Layer
 
-* Status: `In-memory workflow runs plus local JSON experiment history`
+* Status: `In-memory workflow runs plus local JSON run history and experiment history`
 * Workflow run repository: `InMemoryWorkflowRunRepository`
+* Workflow history repository: `JsonFileWorkflowHistoryRepository` storing `data/workflow-runs.json` by default
 * Experiment history repository: `JsonFileExperimentRepository` storing `data/experiments.json` by default
 * Durable multi-user storage contract: `TBD`
 

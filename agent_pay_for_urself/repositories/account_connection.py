@@ -44,9 +44,7 @@ class JsonFileAccountConnectionRepository(AccountConnectionRepository):
             alias=str(payload.get("alias", "메인 계좌")).strip() or "메인 계좌",
             broker=str(payload.get("broker", "kis_mock")).strip() or "kis_mock",
             account_number=str(payload.get("account_number", "")).strip(),
-            account_product_code=(
-                str(payload.get("account_product_code", "01")).strip() or "01"
-            ),
+            account_product_code=(str(payload.get("account_product_code", "01")).strip() or "01"),
         )
 
     def save(self, settings: AccountConnectionSettings) -> AccountConnectionSettings:
@@ -68,11 +66,7 @@ class JsonFileAccountConnectionRepository(AccountConnectionRepository):
         try:
             raw_payload = json.loads(self._path.read_text())
         except json.JSONDecodeError as exc:
-            raise RuntimeError(
-                f"Account connection store is not valid JSON: {self._path}"
-            ) from exc
+            raise RuntimeError(f"Account connection store is not valid JSON: {self._path}") from exc
         if not isinstance(raw_payload, dict):
-            raise RuntimeError(
-                f"Account connection store must contain a JSON object: {self._path}"
-            )
+            raise RuntimeError(f"Account connection store must contain a JSON object: {self._path}")
         return raw_payload

@@ -12,6 +12,7 @@ from agent_pay_for_urself.api.routes import (
     decisions_router,
     experiments_router,
     health_router,
+    history_router,
     market_data_router,
     orders_router,
 )
@@ -32,6 +33,7 @@ def create_app() -> FastAPI:
     install_request_logging(app)
     app.include_router(health_router)
     app.include_router(account_router)
+    app.include_router(history_router)
     app.include_router(market_data_router)
     app.include_router(decisions_router)
     app.include_router(orders_router)

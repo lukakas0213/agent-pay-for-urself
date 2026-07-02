@@ -16,6 +16,8 @@
 * `POST /orders/submissions`
 * `POST /console/interactions`
 * `POST /agent/interactions` (`/console/interactions`의 deprecated alias)
+* `GET /runs`
+* `GET /runs/{run_id}`
 * `POST /experiments`
 * `GET /experiments`
 * `GET /experiments/{experiment_id}`
@@ -26,6 +28,7 @@
 * 종목 심볼은 내부 워크플로우에서 대문자로 정규화된다.
 * `MARKET_DATA_PROVIDER=yahoo`일 때 삼성전자 `005930`은 Yahoo 조회용으로 `005930.KS`를 사용하지만, 공개 API 응답과 워크플로우 결과의 `symbol`은 원래 요청값을 유지한다.
 * `POST /decisions`는 주문 계획만 반환한다. 메인 에이전트는 `user_prompt`, `chat_messages`를 해석할 수 있지만, 실제 브로커 주문 제출은 `POST /orders/submit` 또는 `POST /orders/submissions`에서만 발생한다.
+* `POST /decisions`로 생성된 run은 로컬 JSON history 저장소에도 기록되며, `GET /runs`, `GET /runs/{run_id}`에서 같은 public payload를 기반으로 조회된다.
 * `runtime.llm_mode`는 `model` 또는 `fallback`이다.
 * `runtime.agent_models`는 설정된 경우 에이전트 이름 -> 모델명 매핑을 담는다.
 * `runtime.data_mode`는 현재 `stub` 또는 `yahoo`가 될 수 있다.
@@ -103,3 +106,39 @@
 * `action`은 `"BUY"` 또는 `"SELL"`만 허용한다.
 * `action: "HOLD"` 요청은 유효하지 않은 직접 주문으로 거부된다.
 * `confirm_live_order`는 반드시 `true`여야 한다.
+
+
+## GET /runs
+
+목적:
+저장된 workflow run을 최신순으로 나열해 히스토리 타임라인 화면과 보고서 목록 화면이 공통으로 사용할 수 있게 한다.
+
+응답 모델 `WorkflowRunListItem` 필드:
+
+* `run_id: str`
+* `created_at: str`
+* `symbols: list[str]`
+* `objective: str`
+* `summary: str`
+* `report_approved_count: int`
+* `report_count: int`
+* `decision_actions: dict[str, "BUY" | "SELL" | "HOLD"]`
+
+## GET /runs/{run_id}
+
+목적:
+저장된 workflow run 1건의 상세 정보와 파생 timeline payload를 반환한다.
+
+응답 모델 `WorkflowRunDetailResponse` 상위 필드:
+
+* `run_id: str`
+* `created_at: str`
+* `agent_statuses: list[AgentStatusItem]`
+* `timeline: list[TimelineEventItem]`
+* `analysis_summaries: list[AnalysisSummaryItem]`
+* `result: DecisionResponse`
+
+상태 코드:
+
+* `200`: 저장된 workflow run 반환
+* `404`: `workflow run not found: {run_id}`

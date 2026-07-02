@@ -34,14 +34,19 @@ def create_decision(
     """Run the orchestrated decision workflow and return a stored result."""
 
     try:
-        run_id, result = workflow_service.run(
+        stored_run = workflow_service.run(
             symbols=request.symbols,
             max_position_weight=request.max_position_weight,
             mandate=_to_investment_mandate(request),
             user_prompt=request.user_prompt,
             chat_messages=request.chat_messages,
         )
-        return to_decision_response(run_id, result, workflow_service.runtime_summary())
+        return to_decision_response(
+            stored_run.run_id,
+            stored_run.result,
+            workflow_service.runtime_summary(),
+            created_at=stored_run.created_at,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except RuntimeError as exc:
