@@ -1,5 +1,6 @@
 import { Switch, Route, Router as WouterRouter } from "wouter";
-import { SiteNav, TopHeader } from "./components/SiteNav";
+import { Link } from "wouter";
+import { SiteNav, Topbar } from "./components/SiteNav";
 import { WorkflowHome } from "./components/WorkflowHome";
 import { AccountOverview } from "./components/AccountOverview";
 import { WorkflowReports } from "./components/WorkflowReports";
@@ -10,29 +11,36 @@ import "./styles.css";
 
 function AgentsIndex() {
   return (
-    <div>
-      <div className="mb-8">
-        <h1 className="section-title">에이전트 목록</h1>
-        <p className="card-subtitle">각 에이전트를 선택해 프롬프트와 최근 실행 결과를 확인하세요.</p>
-      </div>
-      <div className="grid-3">
+    <main className="dashboard-page">
+      <section className="page-hero">
+        <div>
+          <span className="eyebrow">Agents</span>
+          <h1>에이전트 목록</h1>
+          <p>각 에이전트를 선택해 프롬프트와 최근 실행 결과를 확인하세요.</p>
+        </div>
+      </section>
+      <div className="card-grid card-grid-3">
         {agentDefinitions.map((agent) => (
-          <a className="card interactive" href={agent.path} key={agent.key}>
-            <h3 className="card-title">{agent.label}</h3>
-            <p className="card-subtitle" style={{ marginBottom: 0 }}>{agent.description}</p>
-          </a>
+          <Link href={agent.path} key={agent.key}>
+            <article className="info-card interactive-card">
+              <strong>{agent.label}</strong>
+              <p>{agent.description}</p>
+            </article>
+          </Link>
         ))}
       </div>
-    </div>
+    </main>
   );
 }
 
 function NotFound() {
   return (
-    <div className="empty-state">
-      <h3>페이지를 찾을 수 없습니다</h3>
-      <p>요청하신 경로가 존재하지 않습니다.</p>
-    </div>
+    <main className="dashboard-page">
+      <div className="empty-panel">
+        <h3>페이지를 찾을 수 없습니다</h3>
+        <p>요청하신 경로가 존재하지 않습니다.</p>
+      </div>
+    </main>
   );
 }
 
@@ -60,11 +68,11 @@ function Router() {
 function App() {
   return (
     <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-      <div className="app-container">
+      <div className="app-shell">
         <SiteNav />
-        <div className="main-area">
-          <TopHeader />
-          <div className="content">
+        <div className="app-main">
+          <Topbar />
+          <div className="app-content">
             <Router />
           </div>
         </div>

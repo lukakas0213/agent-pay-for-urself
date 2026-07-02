@@ -1,130 +1,258 @@
 import { useEffect, useState } from "react";
+
 import {
   ExperimentListItem,
   ExperimentResponse,
   actionLabel,
   fetchJson,
   formatDateTime,
+  formatMetrics,
+  formatPercent,
+  formatScore,
   normalizeDecisionResponse,
   runtimeLabel,
 } from "../lib/workspace";
+
+function approvedReportCount(detail: ExperimentResponse) {
+  return detail.result.investment_reports.filter((report) => report.risk_approved).length;
+}
 
 export function WorkflowReports() {
   const [items, setItems] = useState<ExperimentListItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<ExperimentResponse | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     void loadExperiments();
   }, []);
 
   async function loadExperiments() {
+    setIsLoading(true);
+    setError(null);
     try {
       const data = await fetchJson<ExperimentListItem[]>("/api/experiments");
       setItems(data);
       if (data.length > 0) {
-        setSelectedId(data[0].experiment_id);
+        setSelectedId((current) => current ?? data[0].experiment_id);
         await loadExperiment(data[0].experiment_id);
+      } else {
+        setDetail(null);
       }
-    } catch (e) {
-      console.error(e);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "보고서를 불러오지 못했습니다.");
+    } finally {
+      setIsLoading(false);
     }
   }
 
-  async function loadExperiment(id: string) {
-    setSelectedId(id);
+  async function loadExperiment(experimentId: string) {
+    setSelectedId(experimentId);
+    setError(null);
     try {
-      const data = await fetchJson<ExperimentResponse>(`/api/experiments/${id}`);
+      const data = await fetchJson<ExperimentResponse>(`/api/experiments/${experimentId}`);
       setDetail({
         ...data,
         result: normalizeDecisionResponse(data.result) ?? data.result,
       });
-    } catch (e) {
-      console.error(e);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "보고서 상세를 불러오지 못했습니다.");
     }
   }
 
   return (
-    <div>
-      <div className="mb-8">
-        <h1 className="section-title">보고서 저장소</h1>
-        <p className="card-subtitle">저장된 워크플로우 실행 결과를 확인합니다.</p>
-      </div>
-
-      <div className="two-panel">
-        <div className="list-container">
-          <div style={{ padding: '16px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-main)' }}>
-             <h2 className="card-title" style={{ marginBottom: 0 }}>목록 ({items.length})</h2>
-          </div>
-          {items.map(item => (
-            <button
-              key={item.experiment_id}
-              className={`list-item ${selectedId === item.experiment_id ? 'selected' : ''}`}
-              onClick={() => loadExperiment(item.experiment_id)}
-            >
-              <div style={{ fontWeight: 600, marginBottom: 4, color: 'var(--text-primary)' }}>{item.name}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{formatDateTime(item.created_at)}</div>
-              <div className="flex-row gap-2 mt-4">
-                {item.symbols.map(s => <span key={s} className="badge badge-hold">{s}</span>)}
-              </div>
-            </button>
-          ))}
-          {items.length === 0 && <div className="empty-state" style={{ border: 'none' }}><p>보고서가 없습니다.</p></div>}
-        </div>
-
+    <main className="dashboard-page">
+      <section className="page-hero">
         <div>
+          <span className="eyebrow">Reports</span>
+          <h1>저장된 실행 결과를 리스트와 상세 패널로 나눠 복기한다</h1>
+          <p>
+            <code>GET /experiments</code>와 <code>{"GET /experiments/{experiment_id}"}</code> 응답을 그대로 읽어 저장된 보고서의 단계별 결과를 재구성한다.
+          </p>
+        </div>
+        <div className="hero-sidecard">
+          <span>저장 개수</span>
+          <strong>{items.length}</strong>
+          <small>{isLoading ? "불러오는 중" : "최신순 목록"}</small>
+        </div>
+      </section>
+
+      {error ? <div className="banner banner-error">{error}</div> : null}
+
+      <section className="dashboard-grid">
+        <aside className="panel report-list-panel">
+          <div className="section-head">
+            <div>
+              <span className="section-kicker">Experiment list</span>
+              <h2>보고서 저장소</h2>
+            </div>
+            <button className="secondary-button" onClick={() => void loadExperiments()} type="button">
+              새로고침
+            </button>
+          </div>
+          <div className="stack-list">
+            {items.map((item) => (
+              <button
+                className={`list-card ${selectedId === item.experiment_id ? "list-card-active" : ""}`}
+                key={item.experiment_id}
+                onClick={() => void loadExperiment(item.experiment_id)}
+                type="button"
+              >
+                <strong>{item.name}</strong>
+                <span>{formatDateTime(item.created_at)}</span>
+                <small>{item.symbols.join(", ")}</small>
+                <small>{runtimeLabel(item.runtime)}</small>
+              </button>
+            ))}
+            {!items.length && !isLoading ? (
+              <div className="empty-panel compact-empty-panel">
+                <h3>저장된 보고서가 없습니다</h3>
+                <p>메인 화면에서 실행 결과를 저장하면 이 목록에 나타난다.</p>
+              </div>
+            ) : null}
+          </div>
+        </aside>
+
+        <article className="panel panel-span-2">
           {detail ? (
-            <div className="card">
-              <div className="flex-row justify-between mb-6">
-                 <div>
-                   <h2 className="card-title">{detail.name}</h2>
-                   <p className="card-subtitle">{detail.description || "설명 없음"}</p>
-                 </div>
-                 <span className="badge badge-info">{runtimeLabel(detail.runtime)}</span>
-              </div>
-
-              <div className="grid-4 mb-8">
+            <div className="stack-blocks">
+              <div className="section-head">
                 <div>
-                  <div className="form-label">생성 일시</div>
-                  <div style={{ fontWeight: 600 }}>{formatDateTime(detail.created_at)}</div>
+                  <span className="section-kicker">Report detail</span>
+                  <h2>{detail.name}</h2>
                 </div>
-                <div>
-                  <div className="form-label">판단 수</div>
-                  <div style={{ fontWeight: 600 }}>{detail.result.decisions.length}</div>
+                <span className="status-badge">{runtimeLabel(detail.runtime)}</span>
+              </div>
+              <p className="support-text">{detail.description || "설명 없음"}</p>
+              <div className="stat-grid stat-grid-4">
+                <div className="stat-card">
+                  <span>생성 시각</span>
+                  <strong>{formatDateTime(detail.created_at)}</strong>
                 </div>
-                <div style={{ gridColumn: 'span 2' }}>
-                  <div className="form-label">Run ID</div>
-                  <div style={{ fontWeight: 600, fontFamily: 'monospace' }}>{detail.run_id}</div>
+                <div className="stat-card">
+                  <span>보고서 승인</span>
+                  <strong>{approvedReportCount(detail)} / {detail.result.investment_reports.length}</strong>
+                </div>
+                <div className="stat-card">
+                  <span>판단 수</span>
+                  <strong>{detail.result.decisions.length}</strong>
+                </div>
+                <div className="stat-card">
+                  <span>run_id</span>
+                  <strong>{detail.run_id}</strong>
                 </div>
               </div>
 
-              <div className="mb-8" style={{ padding: 16, background: 'var(--accent-subtle)', borderRadius: 'var(--radius-lg)' }}>
-                 <div className="form-label" style={{ color: 'var(--accent-primary)' }}>메인 에이전트 요약</div>
-                 <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{detail.result.supervisor_directive.summary || "요약 없음"}</div>
+              <div className="metric-card metric-card-accent">
+                <span>메인 에이전트 요약</span>
+                <strong>{detail.result.supervisor_directive.summary || "요약 없음"}</strong>
+                <p>{detail.result.supervisor_directive.guidance.join(" / ") || "가이드 없음"}</p>
               </div>
 
-              <h3 className="card-title mb-6">종목별 판단 및 주문 계획</h3>
-              <div className="grid-2">
-                {detail.result.decisions.map(d => (
-                  <div className="card" style={{ boxShadow: 'none' }} key={d.symbol}>
-                    <div className="flex-row justify-between mb-6">
-                      <div style={{ fontWeight: 600 }}>{d.symbol}</div>
-                      <span className={`badge ${d.action === 'BUY' ? 'badge-buy' : d.action === 'SELL' ? 'badge-sell' : 'badge-hold'}`}>
-                        {actionLabel(d.action)}
-                      </span>
-                    </div>
-                    <p style={{ fontSize: 13 }}>{d.rationale}</p>
+              <section className="content-section compact-section">
+                <div className="section-head section-head-spaced">
+                  <div>
+                    <span className="section-kicker">Input and mandate</span>
+                    <h2>입력과 제약</h2>
                   </div>
-                ))}
-              </div>
+                </div>
+                <div className="card-grid card-grid-2">
+                  <article className="info-card">
+                    <strong>메인 목표</strong>
+                    <p>{detail.result.user_prompt || detail.decision.mandate?.objective || "없음"}</p>
+                  </article>
+                  <article className="info-card">
+                    <strong>채팅 지시</strong>
+                    <p>{detail.result.chat_messages.join(" / ") || "없음"}</p>
+                  </article>
+                  <article className="info-card">
+                    <strong>최대 비중</strong>
+                    <p>{formatPercent(detail.decision.max_position_weight)}</p>
+                  </article>
+                  <article className="info-card">
+                    <strong>watch 심볼</strong>
+                    <p>{detail.result.supervisor_directive.watch_symbols.join(", ") || "없음"}</p>
+                  </article>
+                </div>
+              </section>
+
+              <section className="content-section compact-section">
+                <div className="section-head section-head-spaced">
+                  <div>
+                    <span className="section-kicker">Investment reports</span>
+                    <h2>주문 전 보고서</h2>
+                  </div>
+                </div>
+                <div className="card-grid card-grid-2">
+                  {detail.result.investment_reports.map((report) => (
+                    <article className="info-card" key={report.symbol}>
+                      <div className="card-headline">
+                        <strong>{report.symbol}</strong>
+                        <span>{report.risk_approved ? "리스크 승인" : "리스크 보류"}</span>
+                      </div>
+                      <p>{report.summary}</p>
+                      <span className="card-meta">{actionLabel(report.recommended_action_bias)} · {formatScore(report.signal_strength)}</span>
+                      <small>상승 포인트: {report.bull_points.join(" / ") || "없음"}</small>
+                      <small>하락 포인트: {report.bear_points.join(" / ") || "없음"}</small>
+                      <small>리스크 플래그: {report.risk_flags.join(" / ") || "없음"}</small>
+                    </article>
+                  ))}
+                </div>
+              </section>
+
+              <section className="content-section compact-section">
+                <div className="section-head section-head-spaced">
+                  <div>
+                    <span className="section-kicker">Decisions and orders</span>
+                    <h2>최종 판단과 주문 계획</h2>
+                  </div>
+                </div>
+                <div className="card-grid card-grid-2">
+                  {detail.result.decisions.map((decision) => (
+                    <article className="info-card" key={`${decision.symbol}-decision`}>
+                      <strong>{decision.symbol}</strong>
+                      <p>{actionLabel(decision.action)} · {formatScore(decision.confidence)}</p>
+                      <small>{decision.rationale}</small>
+                    </article>
+                  ))}
+                  {detail.result.orders.map((order) => (
+                    <article className="info-card" key={`${order.symbol}-order`}>
+                      <strong>{order.symbol}</strong>
+                      <p>{order.should_submit ? "제출 가능" : "제출 불가"} · 수량 {order.quantity}</p>
+                      <small>{order.reason}</small>
+                    </article>
+                  ))}
+                </div>
+              </section>
+
+              <section className="content-section compact-section">
+                <div className="section-head section-head-spaced">
+                  <div>
+                    <span className="section-kicker">Collected data</span>
+                    <h2>수집 데이터</h2>
+                  </div>
+                </div>
+                <div className="card-grid card-grid-2">
+                  {detail.result.market_data.map((item) => (
+                    <article className="info-card" key={item.symbol}>
+                      <strong>{item.symbol}</strong>
+                      <p>{item.latest_price}</p>
+                      <small>{formatMetrics(item.financial_metrics)}</small>
+                      <small>{item.news_headlines.join(" / ") || "뉴스 없음"}</small>
+                    </article>
+                  ))}
+                </div>
+              </section>
             </div>
           ) : (
-            <div className="empty-state card">
-              <p>왼쪽 목록에서 보고서를 선택하세요.</p>
+            <div className="empty-panel">
+              <h3>보고서를 선택하세요</h3>
+              <p>왼쪽 목록에서 저장된 실행을 선택하면 상세 결과가 여기에 열린다.</p>
             </div>
           )}
-        </div>
-      </div>
-    </div>
+        </article>
+      </section>
+    </main>
   );
 }
