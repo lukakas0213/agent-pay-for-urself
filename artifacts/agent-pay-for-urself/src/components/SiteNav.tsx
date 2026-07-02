@@ -2,15 +2,21 @@ import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 
 import { buildApiUrl } from "../lib/api";
-import { agentDefinitions, primaryNavItems } from "../lib/workspace";
+import { agentDefinitions } from "../lib/workspace";
 
-function isActivePath(pathname: string, href: string) {
-  return pathname === href || (href !== "/" && pathname.startsWith(`${href}/`));
+function isActive(pathname: string, href: string) {
+  if (href === "/") return pathname === "/";
+  return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function sectionIcon(label: string) {
-  return label.slice(0, 1);
+function isGroupActive(pathname: string, prefix: string) {
+  if (prefix === "/") return pathname === "/";
+  return pathname === prefix || pathname.startsWith(`${prefix}/`);
 }
+
+const historySubItems = [
+  { label: "전체 요약 히스토리", href: "/history" },
+];
 
 export function SiteNav() {
   const [pathname] = useLocation();
@@ -19,119 +25,122 @@ export function SiteNav() {
   useEffect(() => {
     let active = true;
     void fetch(buildApiUrl("/api/health"))
-      .then((response) => {
-        if (active) {
-          setHealth(response.ok ? "ok" : "error");
-        }
-      })
-      .catch(() => {
-        if (active) {
-          setHealth("error");
-        }
-      });
-
-    return () => {
-      active = false;
-    };
+      .then((r) => { if (active) setHealth(r.ok ? "ok" : "error"); })
+      .catch(() => { if (active) setHealth("error"); });
+    return () => { active = false; };
   }, []);
-
-  const resourceItems = [
-    { label: "런타임 모드", href: "/reports", count: "Live" },
-    { label: "정책 가드레일", href: "/agents/log_evaluation", count: "1" },
-    { label: "브로커 연결", href: "/account", count: "KIS" },
-    { label: "시장 데이터 소스", href: "/agents/data_collection", count: "MD" },
-    { label: "워크플로우 기록", href: "/reports", count: "Runs" },
-    { label: "실험 저장소", href: "/reports", count: "Repo" },
-    { label: "워크스페이스 설정", href: "/settings", count: "Cfg" },
-  ];
 
   return (
     <aside className="sidebar">
-        <div className="sidebar-workspace">
-          <div className="workspace-lockup">
-            <div className="workspace-logo" aria-hidden="true">
-              <span />
-            </div>
-            <div>
-              <strong>agent-pay-for-urself</strong>
-              <p>Main Console</p>
-            </div>
+      <div className="sidebar-workspace">
+        <div className="workspace-lockup">
+          <div className="workspace-logo" aria-hidden="true"><span /></div>
+          <div>
+            <strong>agent-pay-for-urself</strong>
+            <p>Main Console</p>
           </div>
         </div>
+      </div>
 
-        <div className="sidebar-stack">
-          <nav className="sidebar-group" aria-label="Primary navigation">
-            <div className="sidebar-group-head">
-              <span>Navigation</span>
-            </div>
-            <div className="sidebar-list">
-              {primaryNavItems.map((item) => {
-                const active = isActivePath(pathname, item.href);
-                return (
-                  <Link
-                    className={`sidebar-link ${active ? "sidebar-link-active" : ""}`}
-                    href={item.href}
-                    key={item.href}
-                  >
-                    <span className="sidebar-icon" aria-hidden="true">{sectionIcon(item.label)}</span>
-                    <span className="sidebar-label">{item.label}</span>
-                  </Link>
-                );
-              })}
-            </div>
-          </nav>
-
-          <div className="sidebar-group">
-            <div className="sidebar-group-head">
-              <span>Workflow Stage</span>
-            </div>
-            <div className="sidebar-list">
-              {agentDefinitions.map((item) => {
-                const active = isActivePath(pathname, item.path);
-                return (
-                  <Link
-                    className={`sidebar-link ${active ? "sidebar-link-active" : ""}`}
-                    href={item.path}
-                    key={item.key}
-                  >
-                    <span className="sidebar-icon" aria-hidden="true">{sectionIcon(item.label)}</span>
-                    <span className="sidebar-label">{item.label}</span>
-                  </Link>
-                );
-              })}
-            </div>
+      <div className="sidebar-stack">
+        <nav className="sidebar-group" aria-label="대시보드">
+          <div className={`sidebar-group-head ${isGroupActive(pathname, "/") ? "sidebar-group-head-active" : ""}`}>
+            <span className="sidebar-group-icon">대</span>
+            <Link href="/" className="sidebar-group-label">대시보드</Link>
           </div>
-
-          <div className="sidebar-group sidebar-group-resources">
-            <div className="sidebar-group-head">
-              <span>Resources</span>
-            </div>
-            <div className="sidebar-list sidebar-list-dense">
-              {resourceItems.map((item) => {
-                const active = isActivePath(pathname, item.href);
-                return (
-                  <Link
-                    className={`sidebar-link sidebar-link-resource ${active ? "sidebar-link-active" : ""}`}
-                    href={item.href}
-                    key={item.label}
-                  >
-                    <span className="sidebar-label">{item.label}</span>
-                    <small className="resource-count">{item.count}</small>
-                  </Link>
-                );
-              })}
-            </div>
+          <div className="sidebar-sub-list">
+            <Link href="/" className={`sidebar-sub-link ${pathname === "/" ? "sidebar-sub-link-active" : ""}`}>
+              메인 에이전트 소통
+            </Link>
           </div>
+        </nav>
+
+        <nav className="sidebar-group" aria-label="에이전트">
+          <div className={`sidebar-group-head ${isGroupActive(pathname, "/agents") ? "sidebar-group-head-active" : ""}`}>
+            <span className="sidebar-group-icon">에</span>
+            <Link href="/agents" className="sidebar-group-label">에이전트</Link>
+          </div>
+          <div className="sidebar-sub-list">
+            <Link
+              href="/agents"
+              className={`sidebar-sub-link ${pathname === "/agents" ? "sidebar-sub-link-active" : ""}`}
+            >
+              메인 에이전트
+            </Link>
+            {agentDefinitions.map((agent) => (
+              <Link
+                key={agent.key}
+                href={agent.path}
+                className={`sidebar-sub-link ${isActive(pathname, agent.path) ? "sidebar-sub-link-active" : ""}`}
+              >
+                {agent.label}
+              </Link>
+            ))}
+          </div>
+        </nav>
+
+        <nav className="sidebar-group" aria-label="히스토리">
+          <div className={`sidebar-group-head ${isGroupActive(pathname, "/history") ? "sidebar-group-head-active" : ""}`}>
+            <span className="sidebar-group-icon">히</span>
+            <Link href="/history" className="sidebar-group-label">히스토리</Link>
+          </div>
+          <div className="sidebar-sub-list">
+            {historySubItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`sidebar-sub-link ${isActive(pathname, item.href) ? "sidebar-sub-link-active" : ""}`}
+              >
+                {item.label}
+              </Link>
+            ))}
+            {agentDefinitions.map((agent) => (
+              <Link
+                key={agent.key}
+                href="/history"
+                className={`sidebar-sub-link ${isActive(pathname, "/history") ? "sidebar-sub-link-active" : ""}`}
+              >
+                {agent.label} 히스토리
+              </Link>
+            ))}
+          </div>
+        </nav>
+
+        <nav className="sidebar-group" aria-label="보고서">
+          <div className={`sidebar-group-head ${isGroupActive(pathname, "/reports") ? "sidebar-group-head-active" : ""}`}>
+            <span className="sidebar-group-icon">보</span>
+            <Link href="/reports" className="sidebar-group-label">보고서</Link>
+          </div>
+          <div className="sidebar-sub-list">
+            <Link href="/reports" className={`sidebar-sub-link ${isActive(pathname, "/reports") ? "sidebar-sub-link-active" : ""}`}>
+              보고서 확인
+            </Link>
+          </div>
+        </nav>
+
+        <nav className="sidebar-group" aria-label="계좌">
+          <div className={`sidebar-group-head ${isGroupActive(pathname, "/account") ? "sidebar-group-head-active" : ""}`}>
+            <span className="sidebar-group-icon">계</span>
+            <Link href="/account" className="sidebar-group-label">계좌</Link>
+          </div>
+          <div className="sidebar-sub-list">
+            <Link href="/account" className={`sidebar-sub-link ${isActive(pathname, "/account") ? "sidebar-sub-link-active" : ""}`}>
+              계좌 연결
+            </Link>
+            <Link href="/account" className={`sidebar-sub-link ${isActive(pathname, "/account") ? "sidebar-sub-link-active" : ""}`}>
+              계좌 상태 확인
+            </Link>
+          </div>
+        </nav>
+      </div>
+
+      <div className="sidebar-footer">
+        <div className="sidebar-health">
+          <span className={`system-dot system-dot-${health}`} />
+          <span>{health === "loading" ? "연결 확인 중" : health === "ok" ? "API 정상" : "API 오류"}</span>
         </div>
-
-        <div className="sidebar-footer">
-          <div className="sidebar-health">
-            <span className={`system-dot system-dot-${health}`} />
-            <span>{health === "loading" ? "연결 확인 중" : health === "ok" ? "API 정상" : "API 오류"}</span>
-          </div>
-          <strong>Ontology-style console layout</strong>
-        </div>
-      </aside>
+      </div>
+    </aside>
   );
 }
 
@@ -150,7 +159,7 @@ export function Topbar() {
             <option>Research Lab</option>
           </select>
         </label>
-        <Link className="topbar-button" href="/#new-run">
+        <Link className="topbar-button" href="/">
           새 실행
         </Link>
       </div>
