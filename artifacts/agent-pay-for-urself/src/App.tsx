@@ -2,7 +2,7 @@ import { Switch, Route, Router as WouterRouter } from "wouter";
 import { Link } from "wouter";
 import { SiteNav, Topbar } from "./components/SiteNav";
 import { WorkflowHome } from "./components/WorkflowHome";
-import { AccountOverview } from "./components/AccountOverview";
+import { AccountOverview, AccountStatus } from "./components/AccountOverview";
 import { WorkflowReports } from "./components/WorkflowReports";
 import { PromptSettings } from "./components/PromptSettings";
 import { AgentWorkspace } from "./components/AgentWorkspace";
@@ -49,8 +49,12 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={WorkflowHome} />
-      <Route path="/history" component={HistoryTimeline} />
+      <Route path="/history">{() => <HistoryTimeline />}</Route>
+      <Route path="/history/agent/:agentKey">
+        {(params) => <HistoryTimeline agentKey={params.agentKey} />}
+      </Route>
       <Route path="/account" component={AccountOverview} />
+      <Route path="/account/status" component={AccountStatus} />
       <Route path="/reports" component={WorkflowReports} />
       <Route path="/settings" component={PromptSettings} />
       <Route path="/agents" component={AgentsIndex} />

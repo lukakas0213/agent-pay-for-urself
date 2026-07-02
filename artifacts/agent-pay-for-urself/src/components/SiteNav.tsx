@@ -14,10 +14,6 @@ function isGroupActive(pathname: string, prefix: string) {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
 }
 
-const historySubItems = [
-  { label: "전체 요약 히스토리", href: "/history" },
-];
-
 export function SiteNav() {
   const [pathname] = useLocation();
   const [health, setHealth] = useState<"loading" | "ok" | "error">("loading");
@@ -71,7 +67,7 @@ export function SiteNav() {
               <Link
                 key={agent.key}
                 href={agent.path}
-                className={`sidebar-sub-link ${isActive(pathname, agent.path) ? "sidebar-sub-link-active" : ""}`}
+                className={`sidebar-sub-link ${pathname === agent.path ? "sidebar-sub-link-active" : ""}`}
               >
                 {agent.label}
               </Link>
@@ -85,24 +81,24 @@ export function SiteNav() {
             <Link href="/history" className="sidebar-group-label">히스토리</Link>
           </div>
           <div className="sidebar-sub-list">
-            {historySubItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`sidebar-sub-link ${isActive(pathname, item.href) ? "sidebar-sub-link-active" : ""}`}
-              >
-                {item.label}
-              </Link>
-            ))}
-            {agentDefinitions.map((agent) => (
-              <Link
-                key={agent.key}
-                href="/history"
-                className={`sidebar-sub-link ${isActive(pathname, "/history") ? "sidebar-sub-link-active" : ""}`}
-              >
-                {agent.label} 히스토리
-              </Link>
-            ))}
+            <Link
+              href="/history"
+              className={`sidebar-sub-link ${pathname === "/history" ? "sidebar-sub-link-active" : ""}`}
+            >
+              전체 요약 히스토리
+            </Link>
+            {agentDefinitions.map((agent) => {
+              const href = `/history/agent/${agent.key}`;
+              return (
+                <Link
+                  key={agent.key}
+                  href={href}
+                  className={`sidebar-sub-link ${pathname === href ? "sidebar-sub-link-active" : ""}`}
+                >
+                  {agent.label} 히스토리
+                </Link>
+              );
+            })}
           </div>
         </nav>
 
@@ -124,10 +120,16 @@ export function SiteNav() {
             <Link href="/account" className="sidebar-group-label">계좌</Link>
           </div>
           <div className="sidebar-sub-list">
-            <Link href="/account" className={`sidebar-sub-link ${isActive(pathname, "/account") ? "sidebar-sub-link-active" : ""}`}>
+            <Link
+              href="/account"
+              className={`sidebar-sub-link ${pathname === "/account" ? "sidebar-sub-link-active" : ""}`}
+            >
               계좌 연결
             </Link>
-            <Link href="/account" className={`sidebar-sub-link ${isActive(pathname, "/account") ? "sidebar-sub-link-active" : ""}`}>
+            <Link
+              href="/account/status"
+              className={`sidebar-sub-link ${pathname === "/account/status" ? "sidebar-sub-link-active" : ""}`}
+            >
               계좌 상태 확인
             </Link>
           </div>

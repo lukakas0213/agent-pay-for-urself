@@ -55,7 +55,7 @@ function statusLabel(s: AgentConnectionStatus) {
   return "미실행";
 }
 
-export function HistoryTimeline() {
+export function HistoryTimeline({ agentKey }: { agentKey?: string }) {
   const [runs, setRuns] = useState<WorkflowRunListItem[]>([]);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [detail, setDetail] = useState<WorkflowRunDetailResponse | null>(null);
@@ -65,7 +65,7 @@ export function HistoryTimeline() {
 
   useEffect(() => {
     void loadRuns();
-  }, []);
+  }, [agentKey]);
 
   useEffect(() => {
     if (selectedRunId) void loadDetail(selectedRunId);
@@ -100,13 +100,33 @@ export function HistoryTimeline() {
 
   const selectedRun = runs.find((r) => r.run_id === selectedRunId) ?? null;
 
+  const filteredDetail = detail
+    ? {
+        ...detail,
+        agent_statuses: agentKey
+          ? detail.agent_statuses.filter((a) => a.agent_key === agentKey)
+          : detail.agent_statuses,
+        timeline: agentKey
+          ? detail.timeline.filter((e) => e.agent_key === agentKey || e.agent_key === null)
+          : detail.timeline,
+      }
+    : null;
+
+  const agentLabel = agentKey
+    ? (detail?.agent_statuses.find((a) => a.agent_key === agentKey)?.label ?? agentKey)
+    : null;
+
   return (
     <main className="dashboard-page">
       <section className="page-hero">
         <div>
           <span className="eyebrow">History</span>
-          <h1>히스토리 타임라인</h1>
-          <p>에이전트가 수행한 작업을 시간순으로 추적합니다.</p>
+          <h1>{agentLabel ? `${agentLabel} 히스토리` : "전체 요약 히스토리"}</h1>
+          <p>
+            {agentLabel
+              ? `${agentLabel} 에이전트의 실행 기록을 시간순으로 추적합니다.`
+              : "모든 에이전트의 실행 기록을 시간순으로 추적합니다."}
+          </p>
         </div>
         <div className="hero-sidecard">
           <span>총 실행</span>
@@ -173,7 +193,7 @@ export function HistoryTimeline() {
           <div className="history-detail">
             {isLoadingDetail ? (
               <div className="empty-panel"><p>상세 정보 불러오는 중...</p></div>
-            ) : !detail ? (
+            ) : !filteredDetail ? (
               <div className="empty-panel">
                 <h3>실행을 선택하세요</h3>
                 <p>왼쪽 목록에서 실행 항목을 클릭하면 에이전트 상태와 타임라인이 표시됩니다.</p>
@@ -188,7 +208,7 @@ export function HistoryTimeline() {
                         <h2>{selectedRun.objective || "실행 요약"}</h2>
                       </div>
                       <span className="support-text" style={{ fontSize: "0.82rem" }}>
-                        {formatDateTime(detail.created_at)}
+                        {formatDateTime(filteredDetail.created_at)}
                       </span>
                     </div>
                     <p style={{ marginBottom: 12 }}>{selectedRun.summary}</p>
@@ -213,7 +233,7 @@ export function HistoryTimeline() {
                     </div>
                   </div>
                   <div className="agent-status-grid">
-                    {detail.agent_statuses.map((agent) => (
+                    {filteredDetail.agent_statuses.map((agent) => (
                       <div key={agent.agent_key} className={`agent-status-item agent-status-${agent.status}`}>
                         <span className="agent-status-dot" />
                         <div>
@@ -233,11 +253,11 @@ export function HistoryTimeline() {
                     </div>
                   </div>
                   <div className="timeline-list">
-                    {detail.timeline.map((event, index) => (
+                    {filteredDetail.timeline.map((event, index) => (
                       <div key={event.event_id} className={`timeline-item timeline-item-${event.status}`}>
                         <div className="timeline-connector">
                           <span className="timeline-dot" />
-                          {index < detail.timeline.length - 1 ? <span className="timeline-line" /> : null}
+                          {index < filteredDetail.timeline.length - 1 ? <span className="timeline-line" /> : null}
                         </div>
                         <div className="timeline-body">
                           <div className="timeline-title">{event.title}</div>
@@ -248,7 +268,7 @@ export function HistoryTimeline() {
                   </div>
                 </div>
 
-                {detail.analysis_summaries.length > 0 && (
+                {filteredDetail.analysis_summaries.length > 0 && (
                   <div className="panel">
                     <div className="section-head">
                       <div>
@@ -257,7 +277,7 @@ export function HistoryTimeline() {
                       </div>
                     </div>
                     <div className="card-grid card-grid-2">
-                      {detail.analysis_summaries.map((item) => (
+                      {filteredDetail.analysis_summaries.map((item) => (
                         <div key={item.symbol} className="metric-card">
                           <strong>{item.symbol}</strong>
                           <span>총점 {formatScore(item.total_score)}</span>
