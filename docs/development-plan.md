@@ -292,14 +292,14 @@ MVP의 작업 우선순위는 아래 순서로 본다.
 목표는 메인 에이전트와 서브 에이전트 모두를 설정 가능한 관리 허브로 만드는 것이다.
 
 작업:
-* `main_agent`를 포함하도록 프롬프트 목록 계약과 프론트 타입 확장
+* `main_agent`를 포함하도록 프롬프트 목록 계약과 프론트 타입 확장 완료
 * 에이전트별 공통 항목과 특화 항목을 구분한 설정 스키마 설계
 * 에이전트 상세 화면에 `prompt editor`, `settings form`, `latest output` 세 영역 배치
 * 메인 에이전트 전용 화면에 최근 응답 흐름 요약과 목적 설정 표시
 
 백엔드 선행 작업:
-* `main_agent`가 `GET /agent-prompts` 응답에 포함되도록 정리
-* 에이전트별 설정 저장/조회 API 설계
+* `main_agent`가 `GET /agent-prompts` 응답에 포함되도록 정리 완료
+* 에이전트별 설정 저장/조회 API 설계 및 구현 완료
 
 산출물:
 * 메인 에이전트와 각 서브 에이전트의 설정 책임이 한 화면군에서 관리된다.
@@ -345,12 +345,12 @@ MVP의 작업 우선순위는 아래 순서로 본다.
 * 계좌 연결 폼을 `broker kind`, `account identifiers`, `credential status` 중심으로 재구성
 * Toss API 입력란과 한국투자 API 입력란을 브로커 종류에 따라 분기
 * `GET /account` 응답에 연결 상태와 자격 증명 상태를 일관되게 포함
-* 필요 시 계좌 연결 저장/조회 API 추가
+* 계좌 연결 저장/조회 API 추가 완료
 
 백엔드 선행 작업:
 * `AccountResponse`의 `connection`, `credential_status` 계약을 실제 구현과 맞춤
-* Toss 연동 범위를 별도 adapter 경계로 설계
-* 한국투자 계좌와 Toss 계좌를 구분할 broker adapter 선택 계약 정의
+* Toss 연동 범위를 별도 adapter 경계로 설계하고 연결 저장 계약 정의 완료
+* 한국투자 계좌와 Toss 계좌를 구분할 broker 선택 계약 정의 완료
 
 산출물:
 * 사용자는 어떤 계좌가 연결되었는지와 현재 계좌 상태를 같은 맥락에서 본다.

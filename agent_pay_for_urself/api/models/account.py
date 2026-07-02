@@ -1,17 +1,28 @@
 """Request and response models for broker account lookups."""
 
+from typing import Literal
+
 from pydantic import BaseModel, Field, field_validator
+
+AccountBrokerKind = Literal["kis_mock", "toss"]
+AccountConnectionBrokerKind = Literal["kis_mock", "toss", "noop"]
 
 
 class AccountConnectionRequest(BaseModel):
     """Broker account identifiers written by the user."""
 
     alias: str = Field(default="메인 계좌", max_length=80)
-    broker: str = Field(default="kis_mock", max_length=40)
+    broker: AccountBrokerKind = Field(default="kis_mock")
     account_number: str = Field(default="", max_length=40)
     account_product_code: str = Field(default="01", max_length=8)
+    toss_account_id: str = Field(default="", max_length=80)
 
-    @field_validator("alias", "broker", "account_number", "account_product_code")
+    @field_validator(
+        "alias",
+        "account_number",
+        "account_product_code",
+        "toss_account_id",
+    )
     @classmethod
     def trim_value(cls, value: str) -> str:
         return value.strip()
@@ -21,9 +32,18 @@ class AccountConnectionItem(BaseModel):
     """Current persisted account connection settings."""
 
     alias: str = Field(description="Display alias for the connected account.")
-    broker: str = Field(description="Broker key used for the current connection.")
-    account_number: str = Field(description="Editable account number used for lookups.")
-    account_product_code: str = Field(description="Editable product code used for lookups.")
+    broker: AccountConnectionBrokerKind = Field(
+        description="Broker key used for the current connection."
+    )
+    account_number: str = Field(
+        description="Editable KIS account number used for lookups when broker is kis_mock."
+    )
+    account_product_code: str = Field(
+        description="Editable KIS product code used for lookups when broker is kis_mock."
+    )
+    toss_account_id: str = Field(
+        description="Editable Toss account identifier used when broker is toss."
+    )
 
 
 class AccountCredentialStatusItem(BaseModel):

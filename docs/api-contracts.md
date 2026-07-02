@@ -29,6 +29,7 @@
 * `MARKET_DATA_PROVIDER=yahoo`일 때 삼성전자 `005930`은 Yahoo 조회용으로 `005930.KS`를 사용하지만, 공개 API 응답과 워크플로우 결과의 `symbol`은 원래 요청값을 유지한다.
 * `POST /decisions`는 주문 계획만 반환한다. 메인 에이전트는 `user_prompt`, `chat_messages`를 해석할 수 있지만, 실제 브로커 주문 제출은 `POST /orders/submit` 또는 `POST /orders/submissions`에서만 발생한다.
 * `POST /decisions`로 생성된 run은 로컬 JSON history 저장소에도 기록되며, `GET /runs`, `GET /runs/{run_id}`에서 같은 public payload를 기반으로 조회된다.
+* `POST /console/interactions`에서 `apply_to_workflow=true`로 생성된 재실행 run은 parent/root lineage와 trigger message를 함께 기록한다.
 * `runtime.llm_mode`는 `model` 또는 `fallback`이다.
 * `runtime.agent_models`는 설정된 경우 에이전트 이름 -> 모델명 매핑을 담는다.
 * `runtime.data_mode`는 현재 `stub` 또는 `yahoo`가 될 수 있다.
@@ -120,6 +121,7 @@
 * `symbols: list[str]`
 * `objective: str`
 * `summary: str`
+* `branch: WorkflowBranchItem`
 * `report_approved_count: int`
 * `report_count: int`
 * `decision_actions: dict[str, "BUY" | "SELL" | "HOLD"]`
@@ -133,6 +135,7 @@
 
 * `run_id: str`
 * `created_at: str`
+* `branch: WorkflowBranchItem`
 * `agent_statuses: list[AgentStatusItem]`
 * `timeline: list[TimelineEventItem]`
 * `analysis_summaries: list[AnalysisSummaryItem]`
@@ -142,3 +145,98 @@
 
 * `200`: 저장된 workflow run 반환
 * `404`: `workflow run not found: {run_id}`
+
+
+`WorkflowBranchItem` 필드:
+
+* `branch_type: "initial" | "followup_rerun"`
+* `parent_run_id: str | null`
+* `root_run_id: str`
+* `branch_depth: int`
+* `trigger_message: str | null`
+* `child_run_ids: list[str]`
+
+
+## GET /agent-prompts
+
+목적:
+메인 에이전트를 포함한 현재 저장된 에이전트 프롬프트 목록을 반환한다.
+
+응답 항목 규칙:
+
+* `main_agent`가 항상 포함된다.
+* 기본 seed가 없는 커스텀 agent key는 현재 계약 범위에 포함하지 않는다.
+
+## PUT /agent-prompts/{agent_key}
+
+목적:
+메인 에이전트 또는 서브 에이전트 1개의 저장 프롬프트를 갱신한다.
+
+허용 `agent_key`:
+
+* `main_agent`
+* `data_collection`
+* `data_analysis`
+* `report`
+* `buy_sell`
+* `order_execution`
+* `log_evaluation`
+
+
+## GET /agent-settings
+
+목적:
+메인 에이전트와 각 서브 에이전트의 저장된 설정 목록을 반환한다.
+
+응답 항목 규칙:
+
+* 모든 항목은 `common`과 `specialized` 두 계층으로 나뉜다.
+* `common`은 `enabled`, `use_llm`, `llm_model`을 포함한다.
+* `specialized`는 agent별 typed settings payload를 담는다.
+
+## PUT /agent-settings/{agent_key}
+
+목적:
+메인 에이전트 또는 서브 에이전트 1개의 저장 설정을 갱신한다.
+
+허용 `agent_key`:
+
+* `main_agent`
+* `data_collection`
+* `data_analysis`
+* `report`
+* `buy_sell`
+* `order_execution`
+* `log_evaluation`
+
+
+## GET /account/connection
+
+목적:
+현재 저장된 브로커 계좌 연결 정보를 반환한다.
+
+응답 필드:
+
+* `alias: str`
+* `broker: "kis_mock" | "toss"`
+* `account_number: str`
+* `account_product_code: str`
+* `toss_account_id: str`
+
+## PUT /account/connection
+
+목적:
+브로커 계좌 연결 정보를 저장하고 저장된 값을 반환한다.
+
+요청/응답 필드:
+
+* `alias: str`
+* `broker: "kis_mock" | "toss"`
+* `account_number: str`
+* `account_product_code: str`
+* `toss_account_id: str`
+
+브로커별 규칙:
+
+* `broker="kis_mock"`일 때 `account_number`, `account_product_code`를 사용한다.
+* `broker="toss"`일 때 `toss_account_id`를 사용하고, 현재 백엔드는 저장 계약만 제공한다.

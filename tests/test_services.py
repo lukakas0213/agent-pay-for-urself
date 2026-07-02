@@ -65,6 +65,8 @@ def test_decision_workflow_service_stores_and_retrieves_results() -> None:
 
     assert stored_run.run_id
     assert stored_run.created_at
+    assert stored_run.branch.branch_type == "initial"
+    assert stored_run.branch.root_run_id == stored_run.run_id
     assert stored == stored_run.result
     assert stored is not None
     assert stored.request.symbols == ("AAPL",)
@@ -104,10 +106,14 @@ def test_decision_workflow_service_reports_live_order_capability_from_broker_ada
     assert runtime.live_order_enabled is True
 
 
-def test_decision_workflow_service_can_rerun_with_followup_message() -> None:
+def test_decision_workflow_service_can_rerun_with_followup_message(tmp_path: Path) -> None:
+    history_repository = JsonFileWorkflowHistoryRepository(
+        tmp_path / "workflow-history-service.json"
+    )
     service = DecisionWorkflowService(
         main_agent=MainAgent(),
         workflow_run_repository=InMemoryWorkflowRunRepository(),
+        workflow_history_repository=history_repository,
     )
     stored_run = service.run(
         symbols=["MSFT"],
@@ -119,6 +125,11 @@ def test_decision_workflow_service_can_rerun_with_followup_message() -> None:
 
     assert updated_run.run_id != stored_run.run_id
     assert updated_run.created_at
+    assert updated_run.branch.branch_type == "followup_rerun"
+    assert updated_run.branch.parent_run_id == stored_run.run_id
+    assert updated_run.branch.root_run_id == stored_run.run_id
+    assert updated_run.branch.branch_depth == 1
+    assert updated_run.branch.trigger_message == "애플을 주시해"
     assert updated_run.result.request.chat_messages == ("애플을 주시해",)
     assert updated_run.result.supervisor_directive.watch_symbols == ("AAPL",)
 
@@ -138,4 +149,7 @@ def test_decision_workflow_service_persists_public_history_payload(tmp_path: Pat
     assert history_payload["run_id"] == stored_run.run_id
     assert history_payload["created_at"] == stored_run.created_at
     assert history_payload["symbols"] == ["AAPL"]
+    assert history_payload["branch_type"] == "initial"
+    assert history_payload["root_run_id"] == stored_run.run_id
+    assert history_payload["branch_depth"] == 0
     assert history_payload["decisions"]

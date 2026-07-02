@@ -3,6 +3,7 @@
 from agent_pay_for_urself.adapters.broker import BrokerAccountSnapshot, BrokerAdapter
 from agent_pay_for_urself.api.models.account import (
     AccountConnectionItem,
+    AccountConnectionRequest,
     AccountCredentialStatusItem,
     AccountHoldingItem,
     AccountResponse,
@@ -32,6 +33,27 @@ class AccountService:
         connection = self._get_connection_settings(snapshot)
         return self._to_response(snapshot, connection)
 
+    def get_connection(self) -> AccountConnectionItem:
+        """Return the persisted broker account connection settings."""
+
+        return self._to_connection_item(self._get_connection_settings())
+
+    def update_connection(self, request: AccountConnectionRequest) -> AccountConnectionItem:
+        """Persist one broker account connection settings record and return it."""
+
+        settings = AccountConnectionSettings(
+            alias=request.alias or "메인 계좌",
+            broker=request.broker,
+            account_number=request.account_number if request.broker == "kis_mock" else "",
+            account_product_code=(
+                request.account_product_code if request.broker == "kis_mock" else "01"
+            ),
+            toss_account_id=request.toss_account_id if request.broker == "toss" else "",
+        )
+        if self._connection_repository is not None:
+            settings = self._connection_repository.save(settings)
+        return self._to_connection_item(settings)
+
     def _to_response(
         self,
         snapshot: BrokerAccountSnapshot,
@@ -41,25 +63,30 @@ class AccountService:
             available=snapshot.available,
             broker=snapshot.broker,
             account_masked=snapshot.account_masked,
-            connection=AccountConnectionItem(
-                alias=connection.alias,
-                broker=connection.broker,
-                account_number=connection.account_number,
-                account_product_code=connection.account_product_code,
-            ),
+            connection=self._to_connection_item(connection),
             credential_status=self._to_credential_status(snapshot, connection),
             summary=self._to_summary(snapshot.summary),
             holdings=[self._to_holding(item) for item in snapshot.holdings],
             message=snapshot.message,
         )
 
+    def _to_connection_item(self, connection: AccountConnectionSettings) -> AccountConnectionItem:
+        return AccountConnectionItem(
+            alias=connection.alias,
+            broker=connection.broker,
+            account_number=connection.account_number,
+            account_product_code=connection.account_product_code,
+            toss_account_id=connection.toss_account_id,
+        )
+
     def _get_connection_settings(
         self,
-        snapshot: BrokerAccountSnapshot,
+        snapshot: BrokerAccountSnapshot | None = None,
     ) -> AccountConnectionSettings:
         if self._connection_repository is not None:
             return self._connection_repository.get()
-        return AccountConnectionSettings(broker=snapshot.broker)
+        broker_name = snapshot.broker if snapshot is not None else "kis_mock"
+        return AccountConnectionSettings(broker=broker_name)
 
     def _to_credential_status(
         self,
@@ -67,6 +94,15 @@ class AccountService:
         connection: AccountConnectionSettings,
     ) -> AccountCredentialStatusItem:
         adapter_name = snapshot.broker
+        if connection.broker == "toss":
+            return AccountCredentialStatusItem(
+                broker_adapter=adapter_name,
+                uses_env_credentials=False,
+                has_app_key=False,
+                has_app_secret=False,
+                ready_for_account_lookup=False,
+                app_key_hint=None,
+            )
         if adapter_name == "noop":
             return AccountCredentialStatusItem(
                 broker_adapter=adapter_name,

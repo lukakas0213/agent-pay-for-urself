@@ -13,6 +13,7 @@ from agent_pay_for_urself.repositories.agent_prompts import (
 from agent_pay_for_urself.schemas import AgentPromptOverrides
 
 AGENT_LABELS = {
+    "main_agent": "메인 에이전트",
     "data_collection": "데이터 수집",
     "data_analysis": "데이터 분석",
     "report": "보고서 작성",
@@ -58,7 +59,10 @@ class AgentPromptService:
         return AgentPromptItem.model_validate(
             {
                 "agent_key": payload.get("agent_key"),
-                "label": payload.get("label", AGENT_LABELS.get(str(payload.get("agent_key")), "")),
+                "label": payload.get(
+                    "label",
+                    AGENT_LABELS.get(str(payload.get("agent_key")), ""),
+                ),
                 "prompt": payload.get("prompt", ""),
                 "updated_at": payload.get("updated_at", datetime.now(UTC).isoformat()),
                 "source": payload.get("source", "custom"),

@@ -72,7 +72,7 @@ flowchart LR
 * `agent_pay_for_urself/api/mappers/` converts internal workflow dataclasses into API responses.
 * `agent_pay_for_urself/api/services/` contains API-facing workflow and console assistant logic.
 * `/console/interactions` is the primary console-assistant endpoint and can optionally append a follow-up natural-language instruction to a stored run before rerunning the workflow.
-* `/runs` and `/runs/{run_id}` expose durable run history derived from stored public workflow payloads.
+* `/runs` and `/runs/{run_id}` expose durable run history derived from stored public workflow payloads, including follow-up rerun lineage metadata.
 * `/experiments` runs and stores Web UI experiment-lab requests with experiment metadata, decision input, prompt overrides, runtime summary, and workflow result.
 * `/agent/interactions` remains as a deprecated compatibility alias.
 * The frontend is built as a static export for Cloudflare Pages. Local development keeps the `/api/:path*` rewrite, while production requests use the build-time `NEXT_PUBLIC_API_BASE_URL` value.

@@ -13,6 +13,12 @@ from agent_pay_for_urself.api.models.agent_prompts import (
     AgentPromptSaveResponse,
     AgentPromptUpdateRequest,
 )
+from agent_pay_for_urself.api.models.agent_settings import (
+    AgentSettingsCommonItem,
+    AgentSettingsItem,
+    AgentSettingsSaveResponse,
+    AgentSettingsUpdateRequest,
+)
 from agent_pay_for_urself.api.models.decisions import (
     AnalysisSignalItem,
     DecisionItem,
@@ -41,6 +47,7 @@ from agent_pay_for_urself.api.models.history import (
     AgentStatusItem,
     AnalysisSummaryItem,
     TimelineEventItem,
+    WorkflowBranchItem,
     WorkflowRunDetailResponse,
     WorkflowRunListItem,
 )
@@ -64,6 +71,10 @@ __all__ = [
     "AccountHoldingItem",
     "AccountResponse",
     "AccountSummaryItem",
+    "AgentSettingsUpdateRequest",
+    "AgentSettingsSaveResponse",
+    "AgentSettingsItem",
+    "AgentSettingsCommonItem",
     "RuntimeSummaryItem",
     "AgentPromptItem",
     "AgentPromptSaveResponse",
@@ -98,6 +109,7 @@ __all__ = [
     "SupervisorDirectiveItem",
     "TimelineEventItem",
     "TradeAction",
+    "WorkflowBranchItem",
     "WorkflowRunDetailResponse",
     "WorkflowRunListItem",
 ]
