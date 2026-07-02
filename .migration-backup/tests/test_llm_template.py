@@ -234,3 +234,37 @@ def test_openai_responses_config_uses_agent_specific_model_env_vars(monkeypatch)
     assert config.model_for_agent("order_execution") == "gpt-5.4-mini"
     assert config.agent_models is not None
     assert config.agent_models["report"] == "gpt-5.5"
+
+
+class RaisingAgentLLMClient(AgentLLMClient):
+    def complete(self, request: AgentLLMRequest) -> dict[str, object]:
+        raise RuntimeError("upstream llm unavailable")
+
+
+def test_main_agent_falls_back_when_llm_request_raises_runtime_error() -> None:
+    llm_client = RaisingAgentLLMClient()
+    agent = MainAgent(
+        data_collection_agent=DataCollectionAgent(
+            market_data_provider=StubMarketDataProvider(),
+            llm_client=llm_client,
+        ),
+        data_analysis_agent=DataAnalysisAgent(llm_client=llm_client),
+        report_agent=ReportAgent(llm_client=llm_client),
+        buy_sell_agent=BuySellAgent(llm_client=llm_client),
+        order_execution_agent=OrderExecutionAgent(llm_client=llm_client),
+        log_evaluation_agent=LogEvaluationAgent(llm_client=llm_client),
+        llm_client=llm_client,
+    )
+
+    result = agent.run(
+        InvestmentRequest(
+            symbols=("AAPL", "MSFT"),
+            max_position_weight=0.2,
+            user_prompt="장기 수익 중심으로 운용하라",
+        )
+    )
+
+    assert result.supervisor_directive.focus_symbols == ("AAPL", "MSFT")
+    assert len(result.market_data) == 2
+    assert len(result.trade_decisions) == 2
+    assert len(result.order_plans) == 2

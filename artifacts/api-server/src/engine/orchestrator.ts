@@ -159,6 +159,7 @@ export function runWorkflow(request: InvestmentRequest): WorkflowResult {
 
   return {
     run_id: runId,
+    created_at: new Date().toISOString(),
     symbols: resolvedRequest.symbols,
     user_prompt: request.user_prompt,
     chat_messages: request.chat_messages,

@@ -17,6 +17,9 @@ def test_account_endpoint_returns_unavailable_snapshot_by_default() -> None:
     payload = response.json()
     assert payload["available"] is False
     assert payload["broker"] == "noop"
+    assert payload["connection"]["broker"] == "noop"
+    assert payload["credential_status"]["broker_adapter"] == "noop"
+    assert payload["credential_status"]["ready_for_account_lookup"] is False
     assert payload["summary"] is None
     assert payload["holdings"] == []
     assert "configured" in payload["message"]

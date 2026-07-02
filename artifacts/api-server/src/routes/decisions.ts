@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { runWorkflow } from "../engine/orchestrator";
+import { addWorkflowRun } from "../lib/history-store";
 import type { InvestmentMandate, RiskTolerance } from "../engine/schemas";
 
 const router: IRouter = Router();
@@ -73,6 +74,7 @@ router.post("/decisions", (req, res) => {
     prompt_overrides: promptOverrides,
   });
 
+  addWorkflowRun(result);
   res.json(result);
 });
 

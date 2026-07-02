@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
+from datetime import UTC, datetime
 
 from agent_pay_for_urself.adapters import MarketDataProvider, StubMarketDataProvider
+from agent_pay_for_urself.api.mappers.workflow import to_decision_response
 from agent_pay_for_urself.api.models.decisions import RuntimeSummaryItem
 from agent_pay_for_urself.api.services.agent_prompts import AgentPromptService
 from agent_pay_for_urself.llm import AgentLLMClient, NoopAgentLLMClient
 from agent_pay_for_urself.orchestrator import MainAgent
+from agent_pay_for_urself.repositories import WorkflowHistoryRepository
 from agent_pay_for_urself.repositories.workflow_runs import WorkflowRunRepository
 from agent_pay_for_urself.schemas import (
     AgentPromptOverrides,
@@ -20,6 +24,15 @@ from agent_pay_for_urself.schemas import (
 logger = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True)
+class StoredWorkflowRun:
+    """Stored workflow metadata returned to API routes after one run completes."""
+
+    run_id: str
+    created_at: str
+    result: WorkflowResult
+
+
 class DecisionWorkflowService:
     """Runs the orchestrator and stores workflow results behind a repository."""
 
@@ -27,12 +40,14 @@ class DecisionWorkflowService:
         self,
         main_agent: MainAgent,
         workflow_run_repository: WorkflowRunRepository,
+        workflow_history_repository: WorkflowHistoryRepository | None = None,
         market_data_provider: MarketDataProvider | None = None,
         llm_client: AgentLLMClient | None = None,
         agent_prompt_service: AgentPromptService | None = None,
     ) -> None:
         self._main_agent = main_agent
         self._workflow_run_repository = workflow_run_repository
+        self._workflow_history_repository = workflow_history_repository
         self._market_data_provider = market_data_provider or StubMarketDataProvider()
         self._llm_client = llm_client or NoopAgentLLMClient()
         self._agent_prompt_service = agent_prompt_service
@@ -44,7 +59,7 @@ class DecisionWorkflowService:
         mandate: InvestmentMandate | None = None,
         user_prompt: str = "",
         chat_messages: list[str] | None = None,
-    ) -> tuple[str, WorkflowResult]:
+    ) -> StoredWorkflowRun:
         request = self._build_request(
             symbols=symbols,
             max_position_weight=max_position_weight,
@@ -54,7 +69,7 @@ class DecisionWorkflowService:
         )
         return self._run_request(request)
 
-    def rerun_with_message(self, run_id: str, message: str) -> tuple[str, WorkflowResult]:
+    def rerun_with_message(self, run_id: str, message: str) -> StoredWorkflowRun:
         previous_result = self.get(run_id)
         if previous_result is None:
             raise KeyError(run_id)
@@ -87,9 +102,11 @@ class DecisionWorkflowService:
             prompt_overrides=self._resolve_prompt_overrides(),
         )
 
-    def _run_request(self, request: InvestmentRequest) -> tuple[str, WorkflowResult]:
+    def _run_request(self, request: InvestmentRequest) -> StoredWorkflowRun:
+        created_at = datetime.now(UTC).isoformat()
         result = self._main_agent.run(request)
         run_id = self._workflow_run_repository.save(result)
+        self._save_history(run_id=run_id, result=result, created_at=created_at)
         logger.info(
             "workflow_completed run_id=%s symbols=%s decisions=%s orders=%s mandate_violations=%s",
             run_id,
@@ -98,12 +115,23 @@ class DecisionWorkflowService:
             len(result.order_plans),
             len(result.mandate_violations),
         )
-        return run_id, result
+        return StoredWorkflowRun(run_id=run_id, created_at=created_at, result=result)
 
     def _resolve_prompt_overrides(self) -> AgentPromptOverrides:
         if self._agent_prompt_service is None:
             return AgentPromptOverrides()
         return self._agent_prompt_service.resolve_prompt_overrides(AgentPromptOverrides())
+
+    def _save_history(self, *, run_id: str, result: WorkflowResult, created_at: str) -> None:
+        if self._workflow_history_repository is None:
+            return
+        response = to_decision_response(
+            run_id,
+            result,
+            self.runtime_summary(),
+            created_at=created_at,
+        )
+        self._workflow_history_repository.save(response.model_dump(mode="json"))
 
     def runtime_summary(self) -> RuntimeSummaryItem:
         """Expose the current workflow runtime mode for API responses."""

@@ -102,7 +102,7 @@ export function SiteNav() {
             </div>
           </div>
 
-          <div className="sidebar-group">
+          <div className="sidebar-group sidebar-group-resources">
             <div className="sidebar-group-head">
               <span>Resources</span>
             </div>

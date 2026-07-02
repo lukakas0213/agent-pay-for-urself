@@ -5,6 +5,7 @@ import agentPromptsRouter from "./agent-prompts";
 import accountRouter from "./account";
 import experimentsRouter from "./experiments";
 import consoleRouter from "./console";
+import historyRouter from "./history";
 
 const router: IRouter = Router();
 
@@ -14,5 +15,6 @@ router.use(agentPromptsRouter);
 router.use(accountRouter);
 router.use(experimentsRouter);
 router.use(consoleRouter);
+router.use(historyRouter);
 
 export default router;

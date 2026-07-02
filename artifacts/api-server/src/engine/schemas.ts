@@ -93,6 +93,7 @@ export interface EvaluationLog {
 
 export interface WorkflowResult {
   run_id: string;
+  created_at: string;
   symbols: string[];
   user_prompt: string;
   chat_messages: string[];

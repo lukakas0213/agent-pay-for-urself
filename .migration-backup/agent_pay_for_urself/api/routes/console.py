@@ -80,7 +80,7 @@ def interact_with_console(
                 detail="run_id is required when apply_to_workflow is true",
             )
         try:
-            updated_run_id, updated_result = workflow_service.rerun_with_message(
+            stored_run = workflow_service.rerun_with_message(
                 request.run_id,
                 request.message,
             )
@@ -92,12 +92,13 @@ def interact_with_console(
         return console_assistant.reply(
             request.message,
             to_decision_response(
-                updated_run_id,
-                updated_result,
+                stored_run.run_id,
+                stored_run.result,
                 workflow_service.runtime_summary(),
+                created_at=stored_run.created_at,
             ),
             applied_to_workflow=True,
-            updated_run_id=updated_run_id,
+            updated_run_id=stored_run.run_id,
         )
 
     current_result = _resolve_current_result(request, workflow_service)

@@ -185,7 +185,7 @@ class MainAgent:
         try:
             payload = self.llm_client.complete(llm_request)
             return self._parse_supervisor_payload(payload, fallback_directive)
-        except (TypeError, ValueError, KeyError):
+        except Exception:
             return fallback_directive
 
     def _apply_supervisor_directive(

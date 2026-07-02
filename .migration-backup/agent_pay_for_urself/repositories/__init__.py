@@ -16,6 +16,7 @@ from agent_pay_for_urself.repositories.experiments import (
 )
 from agent_pay_for_urself.repositories.workflow_history import (
     JsonFileWorkflowHistoryRepository,
+    WorkflowHistoryPayload,
     WorkflowHistoryRepository,
 )
 from agent_pay_for_urself.repositories.workflow_runs import (
@@ -34,6 +35,7 @@ __all__ = [
     "JsonFileAgentPromptRepository",
     "JsonFileExperimentRepository",
     "JsonFileWorkflowHistoryRepository",
+    "WorkflowHistoryPayload",
     "WorkflowHistoryRepository",
     "WorkflowRunRepository",
 ]
