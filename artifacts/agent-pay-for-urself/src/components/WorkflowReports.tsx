@@ -35,9 +35,13 @@ export function WorkflowReports() {
       const data = await fetchJson<ExperimentListItem[]>("/api/experiments");
       setItems(data);
       if (data.length > 0) {
-        setSelectedId((current) => current ?? data[0].experiment_id);
-        await loadExperiment(data[0].experiment_id);
+        const nextSelectedId =
+          selectedId && data.some((item) => item.experiment_id === selectedId)
+            ? selectedId
+            : data[0].experiment_id;
+        await loadExperiment(nextSelectedId);
       } else {
+        setSelectedId(null);
         setDetail(null);
       }
     } catch (requestError) {

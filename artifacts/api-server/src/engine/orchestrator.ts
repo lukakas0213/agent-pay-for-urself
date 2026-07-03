@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { resolveAgentPrompts } from "../lib/agent-prompts-store";
 import { StubMarketDataProvider } from "./market-data";
 import {
@@ -189,7 +190,7 @@ export function runWorkflow(request: InvestmentRequest): WorkflowResult {
 
   const evaluationLog = runLogEvaluationAgent(decisions, orders, prompts);
 
-  const runId = `run-${Date.now()}`;
+  const runId = `run-${randomUUID()}`;
 
   return {
     run_id: runId,

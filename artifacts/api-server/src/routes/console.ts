@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { runWorkflow } from "../engine/orchestrator";
 import type { WorkflowResult } from "../engine/schemas";
-import { addWorkflowRun } from "../lib/history-store";
+import { addWorkflowRun, getWorkflowRun } from "../lib/history-store";
 
 const router: IRouter = Router();
 
@@ -9,11 +9,17 @@ router.post("/console/interactions", (req, res) => {
   const body = req.body as Record<string, unknown>;
   const message = typeof body.message === "string" ? body.message.trim() : "";
   const runId = typeof body.run_id === "string" ? body.run_id : null;
+  const storedResult = runId ? getWorkflowRun(runId) ?? null : null;
 
-  const existingResult =
-    body.current_result && typeof body.current_result === "object"
+  if (runId && !storedResult) {
+    res.status(404).json({ error: `workflow run not found: ${runId}` });
+    return;
+  }
+
+  const existingResult = storedResult ??
+    (body.current_result && typeof body.current_result === "object"
       ? (body.current_result as WorkflowResult)
-      : null;
+      : null);
   const applyToWorkflow = typeof body.apply_to_workflow === "boolean" ? body.apply_to_workflow : true;
 
   const symbols: string[] = existingResult?.symbols ??
