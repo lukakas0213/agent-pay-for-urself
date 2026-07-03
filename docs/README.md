@@ -17,8 +17,8 @@
   프론트 화면을 비개발자도 따라할 수 있게 사용하는 방법을 안내한다.
   프론트 화면 구성, 입력 흐름, 저장/보고서 동작이 바뀌면 갱신한다.
 * [api-contracts.md](api-contracts.md)
-  현재 FastAPI 공개 엔드포인트의 요청/응답 계약, 상태 코드, 운영상 의미를 한 곳에 모아 둔다.
-  `agent_pay_for_urself/api/routes/`, `agent_pay_for_urself/api/models/`, `agent_pay_for_urself/api/services/`의 공개 계약이 바뀌면 갱신한다.
+  현재 FastAPI 백엔드 공개 엔드포인트의 요청/응답 계약, 상태 코드, 운영상 의미를 모아 둔다.
+  `agent_pay_for_urself/api/routes/`, `agent_pay_for_urself/api/models/`, `agent_pay_for_urself/api/services/`, `agent_pay_for_urself/api/mappers/workflow.py`의 공개 계약이 바뀌면 갱신한다.
 * [development-plan.md](development-plan.md)
   현재 아키텍처 구조를 구현하기 위한 소프트웨어 뼈대 개발 계획을 설명한다.
   패키지 경계, 인터페이스, 조립 방식, 구조 검증 순서가 바뀌면 갱신한다.

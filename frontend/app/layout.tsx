@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
-import { SiteNav } from "../components/site-nav";
+import { NavShell } from "../components/site-nav";
+import "./globals.css";
 import "./styles.css";
 
 export const metadata: Metadata = {
@@ -17,12 +18,7 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <body>
-        <div className="app-shell">
-          <SiteNav />
-          <div className="app-main">
-            <div className="app-content">{children}</div>
-          </div>
-        </div>
+        <NavShell>{children}</NavShell>
       </body>
     </html>
   );
