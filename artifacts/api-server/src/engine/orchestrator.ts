@@ -1,3 +1,4 @@
+import { resolveAgentPrompts } from "../lib/agent-prompts-store";
 import { StubMarketDataProvider } from "./market-data";
 import {
   runBuySellAgent,
@@ -133,6 +134,7 @@ export function runWorkflow(request: InvestmentRequest): WorkflowResult {
   };
 
   const directive = buildSupervisorDirective(request, mandate);
+  const prompts = resolveAgentPrompts(request.prompt_overrides);
 
   const resolvedRequest: InvestmentRequest = {
     ...request,
@@ -143,7 +145,7 @@ export function runWorkflow(request: InvestmentRequest): WorkflowResult {
     provider.getMarketData(symbol),
   );
 
-  const analysisSignals = runDataAnalysis(marketData);
+  const analysisSignals = runDataAnalysis(marketData, prompts.data_analysis);
 
   const mandateViolations = checkMandateViolations(resolvedRequest.symbols, mandate);
   const violationsBySymbol = new Map<string, MandateViolation[]>();
@@ -153,7 +155,12 @@ export function runWorkflow(request: InvestmentRequest): WorkflowResult {
     violationsBySymbol.set(violation.symbol, symbolViolations);
   }
 
-  const investmentReports = runReportAgent(resolvedRequest, marketData, analysisSignals).map((report) => {
+  const investmentReports = runReportAgent(
+    resolvedRequest,
+    marketData,
+    analysisSignals,
+    prompts.report,
+  ).map((report) => {
     const symbolViolations = violationsBySymbol.get(report.symbol) ?? [];
     if (symbolViolations.length === 0) {
       return report;
@@ -174,11 +181,11 @@ export function runWorkflow(request: InvestmentRequest): WorkflowResult {
     };
   });
 
-  const decisions = runBuySellAgent(investmentReports);
+  const decisions = runBuySellAgent(investmentReports, prompts.buy_sell);
 
-  const orders = runOrderExecutionAgent(decisions, marketData);
+  const orders = runOrderExecutionAgent(decisions, marketData, prompts.order_execution);
 
-  const evaluationLog = runLogEvaluationAgent(decisions, orders);
+  const evaluationLog = runLogEvaluationAgent(decisions, orders, prompts);
 
   const runId = `run-${Date.now()}`;
 

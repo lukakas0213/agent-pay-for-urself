@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { runWorkflow } from "../engine/orchestrator";
 import type { WorkflowResult } from "../engine/schemas";
+import { addWorkflowRun } from "../lib/history-store";
 
 const router: IRouter = Router();
 
@@ -59,6 +60,8 @@ router.post("/console/interactions", (req, res) => {
     chat_messages: chatMessages,
     prompt_overrides: {},
   });
+
+  addWorkflowRun(updatedResult);
 
   const decisionSummary = updatedResult.decisions
     .map((d) => `${d.symbol}: ${d.action} (신뢰도 ${(d.confidence * 100).toFixed(0)}%)`)

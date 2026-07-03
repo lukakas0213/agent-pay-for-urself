@@ -5,10 +5,13 @@ export function buildApiUrl(path: string) {
     return path;
   }
 
+  const trimmedBaseUrl = apiBaseUrl.replace(/\/+$/, "");
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const baseIncludesApiPrefix = /\/api$/i.test(trimmedBaseUrl);
   const backendPath =
-    normalizedPath === "/api"
-      ? "/"
-      : normalizedPath.replace(/^\/api(?=\/|$)/, "");
-  return new URL(backendPath, apiBaseUrl.replace(/\/+$/, "")).toString();
+    baseIncludesApiPrefix && normalizedPath.startsWith("/api")
+      ? normalizedPath.replace(/^\/api(?=\/|$)/, "") || "/"
+      : normalizedPath;
+
+  return new URL(backendPath, `${trimmedBaseUrl}/`).toString();
 }

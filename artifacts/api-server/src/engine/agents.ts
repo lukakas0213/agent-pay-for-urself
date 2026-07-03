@@ -1,3 +1,4 @@
+import type { AgentKey } from "../lib/agent-prompts-store";
 import type {
   AnalysisSignal,
   EvaluationLog,
@@ -18,7 +19,22 @@ const FINANCIAL_SCORE_ATTRACTIVE = 0.7;
 const FINANCIAL_SCORE_NEUTRAL = 0.5;
 const DEFAULT_ORDER_QUANTITY = 1;
 
-export function runDataAnalysis(marketData: MarketData[]): AnalysisSignal[] {
+type AgentPromptMap = Record<AgentKey, string>;
+
+function summarizePrompt(prompt: string): string {
+  const normalized = prompt.trim().replace(/\s+/g, " ");
+  if (!normalized) {
+    return "prompt=empty";
+  }
+  return `prompt=${normalized.slice(0, 80)}${normalized.length > 80 ? "..." : ""}`;
+}
+
+export function runDataAnalysis(
+  marketData: MarketData[],
+  prompt: string,
+): AnalysisSignal[] {
+  const promptNote = summarizePrompt(prompt);
+
   return marketData.map((data) => {
     const peRatio = data.financial_metrics["pe_ratio"];
     const financialScore =
@@ -38,7 +54,7 @@ export function runDataAnalysis(marketData: MarketData[]): AnalysisSignal[] {
       news_score: newsScore,
       financial_score: financialScore,
       total_score: Math.round(totalScore * 10000) / 10000,
-      rationale: `${data.symbol}: price, news, and financial data were reviewed; PE ratio=${peRatio ?? null}.`,
+      rationale: `${data.symbol}: price, news, and financial data were reviewed; PE ratio=${peRatio ?? null}; ${promptNote}.`,
     };
   });
 }
@@ -47,8 +63,10 @@ export function runReportAgent(
   request: InvestmentRequest,
   marketData: MarketData[],
   signals: AnalysisSignal[],
+  prompt: string,
 ): InvestmentReport[] {
   const marketDataBySymbol = new Map(marketData.map((d) => [d.symbol, d]));
+  const promptNote = summarizePrompt(prompt);
 
   return signals.map((signal) => {
     const md = marketDataBySymbol.get(signal.symbol) ?? null;
@@ -100,11 +118,12 @@ export function runReportAgent(
     if (bullPoints.length > 0) summaryParts.push(`bull=${bullPoints[0]}`);
     if (bearPoints.length > 0) summaryParts.push(`bear=${bearPoints[0]}`);
     if (riskFlags.length > 0) summaryParts.push(`risk=${riskFlags[0]}`);
+    summaryParts.push(promptNote);
 
     const rationale =
       `${signal.symbol}: ${signal.rationale} ` +
       `Recommended bias=${recommendedActionBias} with max position ` +
-      `weight ${request.max_position_weight.toFixed(2)}.`;
+      `weight ${request.max_position_weight.toFixed(2)}. ${promptNote}.`;
 
     return {
       symbol: signal.symbol,
@@ -121,14 +140,19 @@ export function runReportAgent(
   });
 }
 
-export function runBuySellAgent(reports: InvestmentReport[]): TradeDecision[] {
+export function runBuySellAgent(
+  reports: InvestmentReport[],
+  prompt: string,
+): TradeDecision[] {
+  const promptNote = summarizePrompt(prompt);
+
   return reports.map((report) => {
     if (!report.risk_approved) {
       return {
         symbol: report.symbol,
         action: "HOLD" as TradeAction,
         confidence: 0.0,
-        rationale: `Report risk review failed: ${report.risk_flags.join("; ")}. ${report.summary}`,
+        rationale: `Report risk review failed: ${report.risk_flags.join("; ")}. ${report.summary}; ${promptNote}`,
         risk_approved: false,
       };
     }
@@ -136,7 +160,7 @@ export function runBuySellAgent(reports: InvestmentReport[]): TradeDecision[] {
       symbol: report.symbol,
       action: report.recommended_action_bias,
       confidence: report.signal_strength,
-      rationale: report.rationale,
+      rationale: `${report.rationale} ${promptNote}`,
       risk_approved: true,
     };
   });
@@ -145,8 +169,10 @@ export function runBuySellAgent(reports: InvestmentReport[]): TradeDecision[] {
 export function runOrderExecutionAgent(
   decisions: TradeDecision[],
   marketData: MarketData[],
+  prompt: string,
 ): OrderPlan[] {
   const mdBySymbol = new Map(marketData.map((d) => [d.symbol, d]));
+  const promptNote = summarizePrompt(prompt);
 
   return decisions.map((decision) => {
     const md = mdBySymbol.get(decision.symbol) ?? null;
@@ -172,7 +198,7 @@ export function runOrderExecutionAgent(
       broker_exchange_code: brokerExchangeCode,
       limit_price: limitPrice,
       should_submit: shouldSubmit,
-      reason,
+      reason: `${reason}; ${promptNote}`,
     };
   });
 }
@@ -180,9 +206,18 @@ export function runOrderExecutionAgent(
 export function runLogEvaluationAgent(
   decisions: TradeDecision[],
   orders: OrderPlan[],
+  prompts: AgentPromptMap,
 ): EvaluationLog {
   const blockedOrderCount = orders.filter((o) => !o.should_submit).length;
   const notes = decisions.map((d) => `${d.symbol}: ${d.action}`);
+
+  notes.push(`data_collection ${summarizePrompt(prompts.data_collection)}`);
+  notes.push(`data_analysis ${summarizePrompt(prompts.data_analysis)}`);
+  notes.push(`report ${summarizePrompt(prompts.report)}`);
+  notes.push(`buy_sell ${summarizePrompt(prompts.buy_sell)}`);
+  notes.push(`order_execution ${summarizePrompt(prompts.order_execution)}`);
+  notes.push(`log_evaluation ${summarizePrompt(prompts.log_evaluation)}`);
+
   return {
     decision_count: decisions.length,
     order_count: orders.length,

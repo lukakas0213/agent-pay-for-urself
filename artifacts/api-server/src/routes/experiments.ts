@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import type { WorkflowResult } from "../engine/schemas";
+import { getWorkflowRun } from "../lib/history-store";
 
 const router: IRouter = Router();
 
@@ -42,16 +43,23 @@ router.post("/experiments/from-run", (req, res) => {
 
   const name = typeof body.name === "string" ? body.name : "저장된 실행";
   const description = typeof body.description === "string" ? body.description : "";
+  const runId = typeof body.run_id === "string" ? body.run_id : null;
 
   let result: WorkflowResult | null = null;
 
-  if (body.result && typeof body.result === "object") {
+  if (runId) {
+    result = getWorkflowRun(runId) ?? null;
+    if (!result) {
+      res.status(404).json({ error: "저장된 실행 결과를 찾을 수 없습니다." });
+      return;
+    }
+  } else if (body.result && typeof body.result === "object") {
     result = body.result as WorkflowResult;
   }
 
   if (!result) {
     res.status(422).json({
-      error: "result 필드가 필요합니다. 워크플로우 실행 결과를 포함하여 전송하세요.",
+      error: "run_id 또는 result 필드가 필요합니다.",
     });
     return;
   }
