@@ -145,15 +145,40 @@ export function runWorkflow(request: InvestmentRequest): WorkflowResult {
 
   const analysisSignals = runDataAnalysis(marketData);
 
-  const investmentReports = runReportAgent(resolvedRequest, marketData, analysisSignals);
+  const mandateViolations = checkMandateViolations(resolvedRequest.symbols, mandate);
+  const violationsBySymbol = new Map<string, MandateViolation[]>();
+  for (const violation of mandateViolations) {
+    const symbolViolations = violationsBySymbol.get(violation.symbol) ?? [];
+    symbolViolations.push(violation);
+    violationsBySymbol.set(violation.symbol, symbolViolations);
+  }
+
+  const investmentReports = runReportAgent(resolvedRequest, marketData, analysisSignals).map((report) => {
+    const symbolViolations = violationsBySymbol.get(report.symbol) ?? [];
+    if (symbolViolations.length === 0) {
+      return report;
+    }
+
+    const violationMessages = symbolViolations.map((violation) => violation.message);
+    const summary = report.summary.includes("mandate=")
+      ? report.summary
+      : `${report.summary}; mandate=${violationMessages[0]}`;
+
+    return {
+      ...report,
+      summary,
+      risk_flags: [...report.risk_flags.filter((flag) => flag !== "risk rules passed"), ...violationMessages],
+      risk_approved: false,
+      recommended_action_bias: "HOLD",
+      rationale: `${report.rationale} Mandate blocked execution: ${violationMessages.join("; ")}`,
+    };
+  });
 
   const decisions = runBuySellAgent(investmentReports);
 
   const orders = runOrderExecutionAgent(decisions, marketData);
 
   const evaluationLog = runLogEvaluationAgent(decisions, orders);
-
-  const mandateViolations = checkMandateViolations(resolvedRequest.symbols, mandate);
 
   const runId = `run-${Date.now()}`;
 

@@ -13,6 +13,7 @@ router.post("/console/interactions", (req, res) => {
     body.current_result && typeof body.current_result === "object"
       ? (body.current_result as WorkflowResult)
       : null;
+  const applyToWorkflow = typeof body.apply_to_workflow === "boolean" ? body.apply_to_workflow : true;
 
   const symbols: string[] = existingResult?.symbols ??
     (Array.isArray(body.symbols) ? (body.symbols as unknown[]).map(String) : []);
@@ -31,6 +32,18 @@ router.post("/console/interactions", (req, res) => {
       focus: "general",
       reply: `메시지를 수신했습니다: "${message}". 종목을 지정하면 워크플로우 결과를 업데이트할 수 있습니다.`,
       suggested_actions: ["종목 티커(예: AAPL, TSLA)를 포함하여 다시 요청하세요."],
+      applied_to_workflow: false,
+      updated_run_id: runId,
+      updated_result: existingResult,
+    });
+    return;
+  }
+
+  if (!applyToWorkflow) {
+    res.json({
+      focus: "conversation",
+      reply: `메시지를 반영해 대화만 이어갑니다: "${message}". 워크플로우 결과는 그대로 유지했습니다.`,
+      suggested_actions: ["체크박스를 다시 켜면 현재 종목으로 워크플로우를 재실행할 수 있습니다."],
       applied_to_workflow: false,
       updated_run_id: runId,
       updated_result: existingResult,

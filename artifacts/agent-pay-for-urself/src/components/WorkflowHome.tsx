@@ -151,14 +151,17 @@ export function WorkflowHome() {
     saveStoredJson(RESULT_STORAGE_KEY, normalized);
   }
 
-  function persistChat(next: ChatEntry[]) {
-    setChatEntries(next);
-    saveStoredJson(CHAT_STORAGE_KEY, next);
+  function persistChat(next: ChatEntry[] | ((prev: ChatEntry[]) => ChatEntry[])) {
+    setChatEntries((prev) => {
+      const resolved = typeof next === "function" ? next(prev) : next;
+      saveStoredJson(CHAT_STORAGE_KEY, resolved);
+      return resolved;
+    });
   }
 
   function appendChat(entry: Omit<ChatEntry, "id" | "timestamp">) {
-    persistChat([
-      ...chatEntries,
+    persistChat((prev) => [
+      ...prev,
       { id: buildId("chat"), timestamp: nowIso(), ...entry },
     ]);
   }
@@ -175,7 +178,8 @@ export function WorkflowHome() {
       : null;
     if (nextSettings) persistSettings(nextSettings);
 
-    appendChat({ role: "user", content: `실행 요청: ${symbols.join(", ")} / ${userPrompt}` });
+    const requestMessage = `실행 요청: ${symbols.join(", ")} / ${userPrompt}`;
+    appendChat({ role: "user", content: requestMessage });
 
     try {
       const requestBody = buildDecisionRequest(
@@ -184,7 +188,9 @@ export function WorkflowHome() {
         userPrompt,
         riskTolerance,
         autoTradingEnabled,
-        chatEntries.filter((e) => e.role === "user").map((e) => e.content),
+        [...chatEntries, { id: "pending-user", timestamp: nowIso(), role: "user" as const, content: requestMessage }]
+          .filter((e) => e.role === "user")
+          .map((e) => e.content),
       );
       const response = await fetchJson<DecisionResponse>("/api/decisions", {
         method: "POST",
