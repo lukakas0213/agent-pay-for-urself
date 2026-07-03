@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.env
+.DS_Store
+node_modules/
+.next/
+dist/
+build/
+data/*.json
+frontend/*.tsbuildinfo
+frontend/out/
+한국투자증권_오픈API.xlsx
