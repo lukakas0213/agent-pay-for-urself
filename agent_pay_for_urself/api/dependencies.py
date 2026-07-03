@@ -24,17 +24,22 @@ from agent_pay_for_urself.agents import (
 )
 from agent_pay_for_urself.api.services.account import AccountService
 from agent_pay_for_urself.api.services.agent_prompts import AgentPromptService
+from agent_pay_for_urself.api.services.agent_settings import AgentSettingsService
 from agent_pay_for_urself.api.services.console_assistant import ConsoleAssistantService
 from agent_pay_for_urself.api.services.decision_workflow import DecisionWorkflowService
 from agent_pay_for_urself.api.services.experiments import ExperimentService
+from agent_pay_for_urself.api.services.history import WorkflowHistoryService
 from agent_pay_for_urself.api.services.market_data import MarketDataService
 from agent_pay_for_urself.api.services.order_submission import OrderSubmissionService
 from agent_pay_for_urself.llm import build_default_agent_llm_client
 from agent_pay_for_urself.orchestrator import MainAgent
 from agent_pay_for_urself.repositories import (
     InMemoryWorkflowRunRepository,
+    JsonFileAccountConnectionRepository,
     JsonFileAgentPromptRepository,
+    JsonFileAgentSettingsRepository,
     JsonFileExperimentRepository,
+    JsonFileWorkflowHistoryRepository,
 )
 
 load_dotenv()
@@ -84,11 +89,20 @@ def _build_broker_adapter() -> BrokerAdapter:
 _market_data_provider = _build_market_data_provider()
 _broker_adapter = _build_broker_adapter()
 _workflow_run_repository = InMemoryWorkflowRunRepository()
+_workflow_history_repository = JsonFileWorkflowHistoryRepository(
+    Path(os.getenv("WORKFLOW_HISTORY_STORE_PATH", "data/workflow-runs.json"))
+)
 _experiment_repository = JsonFileExperimentRepository(
     Path(os.getenv("EXPERIMENT_STORE_PATH", "data/experiments.json"))
 )
 _agent_prompt_repository = JsonFileAgentPromptRepository(
     Path(os.getenv("AGENT_PROMPT_STORE_PATH", "data/agent-prompts.json"))
+)
+_agent_settings_repository = JsonFileAgentSettingsRepository(
+    Path(os.getenv("AGENT_SETTINGS_STORE_PATH", "data/agent-settings.json"))
+)
+_account_connection_repository = JsonFileAccountConnectionRepository(
+    Path(os.getenv("ACCOUNT_CONNECTION_STORE_PATH", "data/account-connection.json"))
 )
 _agent_llm_client = build_default_agent_llm_client()
 _main_agent = MainAgent(
@@ -107,9 +121,11 @@ _main_agent = MainAgent(
     llm_client=_agent_llm_client,
 )
 _agent_prompt_service = AgentPromptService(repository=_agent_prompt_repository)
+_agent_settings_service = AgentSettingsService(repository=_agent_settings_repository)
 _decision_workflow_service = DecisionWorkflowService(
     main_agent=_main_agent,
     workflow_run_repository=_workflow_run_repository,
+    workflow_history_repository=_workflow_history_repository,
     market_data_provider=_market_data_provider,
     llm_client=_agent_llm_client,
     agent_prompt_service=_agent_prompt_service,
@@ -119,7 +135,11 @@ _order_submission_service = OrderSubmissionService(
     workflow_run_repository=_workflow_run_repository,
 )
 _market_data_service = MarketDataService(market_data_provider=_market_data_provider)
-_account_service = AccountService(broker_adapter=_broker_adapter)
+_account_service = AccountService(
+    broker_adapter=_broker_adapter,
+    connection_repository=_account_connection_repository,
+)
+_workflow_history_service = WorkflowHistoryService(repository=_workflow_history_repository)
 _experiment_service = ExperimentService(
     main_agent=_main_agent,
     workflow_run_repository=_workflow_run_repository,
@@ -158,3 +178,11 @@ def get_agent_prompt_service() -> AgentPromptService:
 
 def get_console_assistant_service() -> ConsoleAssistantService:
     return _console_assistant_service
+
+
+def get_workflow_history_service() -> WorkflowHistoryService:
+    return _workflow_history_service
+
+
+def get_agent_settings_service() -> AgentSettingsService:
+    return _agent_settings_service

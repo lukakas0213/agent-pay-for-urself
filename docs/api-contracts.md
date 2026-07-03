@@ -11,6 +11,8 @@
 
 * `GET /health`
 * `GET /account`
+* `GET /account/connection`
+* `PUT /account/connection`
 * `GET /market-data/{symbol}`
 * `POST /decisions`
 * `POST /orders/submit`
@@ -18,8 +20,13 @@
 * `GET /agent-prompts`
 * `GET /agent-prompts/{agent_key}`
 * `PUT /agent-prompts/{agent_key}`
+* `GET /agent-settings`
+* `GET /agent-settings/{agent_key}`
+* `PUT /agent-settings/{agent_key}`
 * `POST /console/interactions`
 * `POST /agent/interactions` (`/console/interactions`의 deprecated alias)
+* `GET /runs`
+* `GET /runs/{run_id}`
 * `POST /experiments`
 * `POST /experiments/from-run`
 * `GET /experiments`
@@ -37,12 +44,15 @@
 
 * 요청과 응답 본문은 JSON 기준이다.
 * 별도 prefix가 없는 엔드포인트는 루트 경로에 직접 노출된다.
-* 심볼 입력은 서비스 또는 워크플로우 내부에서 대문자로 정규화될 수 있다.
-* `POST /decisions`와 `POST /experiments`는 분석과 주문 계획을 만든다. 실제 브로커 제출은 `POST /orders/submit` 또는 `POST /orders/submissions`에서만 발생한다.
-* `runtime.llm_mode`는 현재 `model` 또는 `fallback`이다.
-* `runtime.data_mode`는 현재 구성된 마켓 데이터 provider 이름을 노출한다.
+* 종목 심볼은 내부 워크플로우에서 대문자로 정규화된다.
+* `MARKET_DATA_PROVIDER=yahoo`일 때 `005930` 같은 한국 심볼은 provider 조회용으로 `005930.KS`로 변환될 수 있지만, 공개 API 응답과 워크플로우 결과의 `symbol`은 원래 요청값을 유지한다.
+* `POST /decisions`와 `POST /experiments`는 분석과 주문 계획을 만든다. 메인 에이전트는 `user_prompt`, `chat_messages`를 해석할 수 있지만, 실제 브로커 주문 제출은 `POST /orders/submit` 또는 `POST /orders/submissions`에서만 발생한다.
+* `POST /decisions`로 생성된 run은 로컬 JSON history 저장소에도 기록되며, `GET /runs`, `GET /runs/{run_id}`에서 같은 public payload를 기반으로 조회된다.
+* `POST /console/interactions`에서 `apply_to_workflow=true`로 생성된 재실행 run은 parent/root lineage와 trigger message를 함께 기록한다.
+* `runtime.llm_mode`는 `model` 또는 `fallback`이다.
+* `runtime.agent_models`는 설정된 경우 에이전트 이름 -> 모델명 매핑을 담는다.
+* `runtime.data_mode`는 현재 구성된 마켓 데이터 provider 이름을 노출하며, 기본 구현에서는 `stub` 또는 `yahoo`가 될 수 있다.
 * `runtime.live_order_enabled`는 현재 런타임이 실제 브로커 주문 제출을 지원하는지 나타낸다.
-* `MARKET_DATA_PROVIDER=yahoo`일 때 `005930` 같은 한국 심볼은 provider 조회용으로 변환될 수 있지만, 공개 응답의 `symbol`은 원래 요청 심볼 기준으로 유지한다.
 
 ## 공통 스키마
 
@@ -104,9 +114,10 @@
 `AccountConnectionItem`:
 
 * `alias: str`
-* `broker: str`
+* `broker: "kis_mock" | "toss" | "noop"`
 * `account_number: str`
 * `account_product_code: str`
+* `toss_account_id: str`
 
 `AccountCredentialStatusItem`:
 
@@ -308,6 +319,12 @@
 * `400 Bad Request`: `confirm_live_order=false`, 잘못된 액션, 수량/가격 오류 등 요청 오류
 * `503 Service Unavailable`: 현재 런타임에서 live submission 비활성화
 
+운영상 의미:
+
+* `action`은 `"BUY"` 또는 `"SELL"`만 허용한다.
+* `action: "HOLD"` 요청은 유효하지 않은 직접 주문으로 거부된다.
+* `confirm_live_order`는 반드시 `true`여야 한다.
+
 ### POST /orders/submissions
 
 목적:
@@ -353,6 +370,52 @@
 * `should_submit=false` 이거나 `action`이 `BUY`/`SELL`이 아닌 저장 주문은 `skipped_orders`로 빠진다.
 * 존재하지 않는 심볼을 요청하면 해당 심볼도 `skipped_orders`에 기록된다.
 
+### GET /runs
+
+목적:
+저장된 workflow run을 최신순으로 나열해 히스토리 타임라인 화면과 보고서 목록 화면이 공통으로 사용할 수 있게 한다.
+
+응답 모델 `WorkflowRunListItem`:
+
+* `run_id: str`
+* `created_at: str`
+* `symbols: list[str]`
+* `objective: str`
+* `summary: str`
+* `branch: WorkflowBranchItem`
+* `report_approved_count: int`
+* `report_count: int`
+* `decision_actions: dict[str, "BUY" | "SELL" | "HOLD"]`
+
+### GET /runs/{run_id}
+
+목적:
+저장된 workflow run 1건의 상세 정보와 파생 timeline payload를 반환한다.
+
+응답 모델 `WorkflowRunDetailResponse`:
+
+* `run_id: str`
+* `created_at: str`
+* `branch: WorkflowBranchItem`
+* `agent_statuses: list[AgentStatusItem]`
+* `timeline: list[TimelineEventItem]`
+* `analysis_summaries: list[AnalysisSummaryItem]`
+* `result: DecisionResponse`
+
+`WorkflowBranchItem`:
+
+* `branch_type: "initial" | "followup_rerun"`
+* `parent_run_id: str | null`
+* `root_run_id: str`
+* `branch_depth: int`
+* `trigger_message: str | null`
+* `child_run_ids: list[str]`
+
+상태 코드:
+
+* `200 OK`: 저장된 workflow run 반환
+* `404 Not Found`: `workflow run not found: {run_id}`
+
 ### GET /agent-prompts
 
 목적:
@@ -378,7 +441,7 @@
 경로 파라미터:
 
 * `agent_key: str`
-  현재 저장소 기준 지원 키는 `data_collection`, `data_analysis`, `report`, `buy_sell`, `order_execution`, `log_evaluation` 이다.
+  현재 저장소 기준 지원 키는 `main_agent`, `data_collection`, `data_analysis`, `report`, `buy_sell`, `order_execution`, `log_evaluation` 이다.
 
 응답:
 
@@ -398,6 +461,69 @@
 응답 모델 `AgentPromptSaveResponse`:
 
 * `item: AgentPromptItem`
+
+상태 코드:
+
+* `200 OK`: 저장 성공
+* `404 Not Found`: 지원하지 않는 `agent_key`
+
+### GET /agent-settings
+
+목적:
+메인 에이전트와 각 서브 에이전트의 저장된 설정 목록을 반환한다.
+
+응답 모델:
+
+* `list[AgentSettingsItem]`
+
+`AgentSettingsItem`:
+
+* `agent_key: "main_agent" | "data_collection" | "data_analysis" | "report" | "buy_sell" | "order_execution" | "log_evaluation"`
+* `label: str`
+* `updated_at: str`
+* `source: str`
+* `common: AgentSettingsCommonItem`
+* `specialized: typed settings payload`
+
+`AgentSettingsCommonItem`:
+
+* `enabled: bool`
+* `use_llm: bool`
+* `llm_model: str | null`
+
+### GET /agent-settings/{agent_key}
+
+목적:
+특정 에이전트 설정 1건을 조회한다.
+
+응답:
+
+* `200 OK`: `AgentSettingsItem`
+* `404 Not Found`: 대상 설정 없음
+
+### PUT /agent-settings/{agent_key}
+
+목적:
+메인 에이전트 또는 서브 에이전트 1개의 저장 설정을 갱신한다.
+
+요청 모델 `AgentSettingsUpdateRequest`:
+
+* `common: AgentSettingsCommonItem`
+* `specialized: typed settings payload`
+
+허용 `agent_key`:
+
+* `main_agent`
+* `data_collection`
+* `data_analysis`
+* `report`
+* `buy_sell`
+* `order_execution`
+* `log_evaluation`
+
+응답 모델 `AgentSettingsSaveResponse`:
+
+* `item: AgentSettingsItem`
 
 상태 코드:
 
@@ -529,6 +655,45 @@
 
 * `200 OK`: `ExperimentResponse`
 * `404 Not Found`: 대상 실험 없음
+
+### GET /account/connection
+
+목적:
+현재 저장된 브로커 계좌 연결 정보를 반환한다.
+
+응답 모델 `AccountConnectionItem`:
+
+* `alias: str`
+* `broker: "kis_mock" | "toss" | "noop"`
+* `account_number: str`
+* `account_product_code: str`
+* `toss_account_id: str`
+
+### PUT /account/connection
+
+목적:
+브로커 계좌 연결 정보를 저장하고 저장된 값을 반환한다.
+
+요청 모델 `AccountConnectionRequest`:
+
+* `alias: str`
+* `broker: "kis_mock" | "toss"`
+* `account_number: str`
+* `account_product_code: str`
+* `toss_account_id: str`
+
+응답 모델 `AccountConnectionItem`:
+
+* `alias: str`
+* `broker: "kis_mock" | "toss" | "noop"`
+* `account_number: str`
+* `account_product_code: str`
+* `toss_account_id: str`
+
+브로커별 규칙:
+
+* `broker="kis_mock"`일 때 `account_number`, `account_product_code`를 사용한다.
+* `broker="toss"`일 때 `toss_account_id`를 사용하고, 현재 백엔드는 저장 계약만 제공한다.
 
 ## 수정 트리거
 

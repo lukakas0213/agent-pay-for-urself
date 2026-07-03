@@ -17,6 +17,7 @@ class AccountConnectionSettings:
     broker: str = "kis_mock"
     account_number: str = ""
     account_product_code: str = "01"
+    toss_account_id: str = ""
 
 
 AccountConnectionPayload = dict[str, Any]
@@ -44,9 +45,8 @@ class JsonFileAccountConnectionRepository(AccountConnectionRepository):
             alias=str(payload.get("alias", "메인 계좌")).strip() or "메인 계좌",
             broker=str(payload.get("broker", "kis_mock")).strip() or "kis_mock",
             account_number=str(payload.get("account_number", "")).strip(),
-            account_product_code=(
-                str(payload.get("account_product_code", "01")).strip() or "01"
-            ),
+            account_product_code=(str(payload.get("account_product_code", "01")).strip() or "01"),
+            toss_account_id=str(payload.get("toss_account_id", "")).strip(),
         )
 
     def save(self, settings: AccountConnectionSettings) -> AccountConnectionSettings:
@@ -55,6 +55,7 @@ class JsonFileAccountConnectionRepository(AccountConnectionRepository):
             "broker": settings.broker,
             "account_number": settings.account_number,
             "account_product_code": settings.account_product_code,
+            "toss_account_id": settings.toss_account_id,
         }
         self._path.parent.mkdir(parents=True, exist_ok=True)
         temp_path = self._path.with_suffix(f"{self._path.suffix}.tmp")
@@ -68,11 +69,7 @@ class JsonFileAccountConnectionRepository(AccountConnectionRepository):
         try:
             raw_payload = json.loads(self._path.read_text())
         except json.JSONDecodeError as exc:
-            raise RuntimeError(
-                f"Account connection store is not valid JSON: {self._path}"
-            ) from exc
+            raise RuntimeError(f"Account connection store is not valid JSON: {self._path}") from exc
         if not isinstance(raw_payload, dict):
-            raise RuntimeError(
-                f"Account connection store must contain a JSON object: {self._path}"
-            )
+            raise RuntimeError(f"Account connection store must contain a JSON object: {self._path}")
         return raw_payload

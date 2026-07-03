@@ -9,6 +9,7 @@ def test_agent_prompt_repository_keeps_default_prompts_and_updates_one_item(tmp_
 
     prompts = repository.list()
     assert {item["agent_key"] for item in prompts} == {
+        "main_agent",
         "data_collection",
         "data_analysis",
         "report",
@@ -16,6 +17,7 @@ def test_agent_prompt_repository_keeps_default_prompts_and_updates_one_item(tmp_
         "order_execution",
         "log_evaluation",
     }
+    assert repository.get("main_agent")["source"] == "default"
 
     repository.save(
         {
@@ -35,14 +37,14 @@ def test_agent_prompt_service_updates_and_resolves_prompt_overrides(tmp_path) ->
     service = AgentPromptService(JsonFileAgentPromptRepository(tmp_path / "agent-prompts.json"))
 
     item = service.update(
-        "buy_sell",
-        AgentPromptUpdateRequest(prompt="Prefer HOLD when confidence is weak."),
+        "main_agent",
+        AgentPromptUpdateRequest(prompt="Keep the objective narrow and explicit."),
     )
 
-    assert item.agent_key == "buy_sell"
+    assert item.agent_key == "main_agent"
     assert item.source == "custom"
-    assert service.get("buy_sell").prompt == "Prefer HOLD when confidence is weak."
+    assert service.get("main_agent").prompt == "Keep the objective narrow and explicit."
 
     resolved = service.resolve_prompt_overrides(AgentPromptOverrides())
-    assert "Prefer HOLD when confidence is weak." in resolved.buy_sell
+    assert "Keep the objective narrow and explicit." in resolved.main_agent
     assert resolved.data_collection

@@ -29,9 +29,7 @@ class JsonFileWorkflowHistoryRepository(WorkflowHistoryRepository):
         self._path = Path(path)
 
     def save(self, payload: WorkflowHistoryPayload) -> WorkflowHistoryPayload:
-        history = [
-            item for item in self._load_all() if item.get("run_id") != payload.get("run_id")
-        ]
+        history = [item for item in self._load_all() if item.get("run_id") != payload.get("run_id")]
         history.append(payload)
         self._write_all(history)
         return payload
@@ -54,9 +52,7 @@ class JsonFileWorkflowHistoryRepository(WorkflowHistoryRepository):
         except json.JSONDecodeError as exc:
             raise RuntimeError(f"Workflow history store is not valid JSON: {self._path}") from exc
         if not isinstance(raw_payload, list):
-            raise RuntimeError(
-                f"Workflow history store must contain a JSON list: {self._path}"
-            )
+            raise RuntimeError(f"Workflow history store must contain a JSON list: {self._path}")
         return [item for item in raw_payload if isinstance(item, dict)]
 
     def _write_all(self, history: list[WorkflowHistoryPayload]) -> None:
