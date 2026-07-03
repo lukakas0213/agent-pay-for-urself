@@ -71,6 +71,8 @@ def test_run_history_lists_stored_workflow_runs(tmp_path: Path) -> None:
     assert matching["symbols"] == ["AAPL", "MSFT"]
     assert matching["created_at"]
     assert matching["objective"]
+    assert matching["branch"]["branch_type"] == "initial"
+    assert matching["branch"]["root_run_id"] == run_id
     assert isinstance(matching["decision_actions"], dict)
 
 
@@ -96,11 +98,56 @@ def test_run_history_returns_detail_with_timeline(tmp_path: Path) -> None:
     payload = response.json()
     assert payload["run_id"] == run_id
     assert payload["created_at"]
+    assert payload["branch"]["branch_type"] == "initial"
     assert len(payload["agent_statuses"]) == 7
     assert len(payload["timeline"]) == 7
     assert payload["analysis_summaries"][0]["symbol"] == "AAPL"
     assert payload["result"]["run_id"] == run_id
     assert payload["result"]["created_at"] == payload["created_at"]
+
+
+def test_run_history_records_rerun_branch_lineage(tmp_path: Path) -> None:
+    client = _build_client(tmp_path)
+
+    try:
+        created = client.post(
+            "/decisions",
+            json={
+                "symbols": ["MSFT"],
+                "max_position_weight": 0.2,
+                "user_prompt": "기본 전략을 유지해라",
+            },
+        )
+        parent_run_id = created.json()["run_id"]
+        rerun = client.post(
+            "/console/interactions",
+            json={
+                "message": "애플도 같이 보수적으로 검토해라",
+                "run_id": parent_run_id,
+                "apply_to_workflow": True,
+            },
+        )
+        child_run_id = rerun.json()["updated_run_id"]
+        parent_detail = client.get(f"/runs/{parent_run_id}")
+        child_detail = client.get(f"/runs/{child_run_id}")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert rerun.status_code == 200
+    assert parent_detail.status_code == 200
+    assert child_detail.status_code == 200
+
+    parent_payload = parent_detail.json()
+    child_payload = child_detail.json()
+    assert parent_payload["branch"]["child_run_ids"] == [child_run_id]
+    assert child_payload["branch"]["branch_type"] == "followup_rerun"
+    assert child_payload["branch"]["parent_run_id"] == parent_run_id
+    assert child_payload["branch"]["root_run_id"] == parent_run_id
+    assert child_payload["branch"]["branch_depth"] == 1
+    assert child_payload["branch"]["trigger_message"] == "애플도 같이 보수적으로 검토해라"
+    assert child_payload["timeline"][0]["title"] == "후속 지시로 재실행"
+    assert parent_run_id in child_payload["timeline"][0]["detail"]
+    assert len(child_payload["timeline"]) == 8
 
 
 def test_run_history_returns_not_found_for_missing_run(tmp_path: Path) -> None:

@@ -92,10 +92,12 @@
 
 * `계좌 별칭`
 * `브로커`
-* `계좌 번호`
-* `상품 코드`
+* `브로커 종류`
+* `계좌 번호` (한국투자)
+* `상품 코드` (한국투자)
+* `Toss 계좌 ID` (Toss)
 
-현재 저장소 계약에는 이 값을 저장하는 별도 서버 API가 없다.
+이 값은 `GET /account/connection`, `PUT /account/connection`으로 서버에 저장하고 다시 읽는다.
 
 ### API에서 받는 값
 
@@ -127,6 +129,7 @@
 * `데이터 수집`
 * `데이터 분석`
 * `보고서 작성`
+* `메인 에이전트`
 * `매수/매도 판단`
 * `주문 실행`
 * `로그/평가`
@@ -144,8 +147,10 @@
 
 아래는 프롬프트 API를 사용한다.
 
-* 목록 조회: `GET /agent-prompts`
-* 개별 저장: `PUT /agent-prompts/{agent_key}`
+* 프롬프트 목록 조회: `GET /agent-prompts`
+* 프롬프트 개별 저장: `PUT /agent-prompts/{agent_key}`
+* 설정 목록 조회: `GET /agent-settings`
+* 설정 개별 저장: `PUT /agent-settings/{agent_key}`
 
 ### 브라우저 로컬에 저장하는 값
 

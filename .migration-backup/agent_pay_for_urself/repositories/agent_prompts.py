@@ -14,6 +14,16 @@ AgentPromptPayload = dict[str, Any]
 
 AGENT_PROMPT_DEFAULTS: tuple[AgentPromptPayload, ...] = (
     {
+        "agent_key": "main_agent",
+        "label": "메인 에이전트",
+        "prompt": (
+            "Interpret the user objective conservatively, preserve mandate boundaries, "
+            "and hand off only clear structured guidance to downstream agents."
+        ),
+        "updated_at": "default",
+        "source": "default",
+    },
+    {
         "agent_key": "data_collection",
         "label": "데이터 수집",
         "prompt": (

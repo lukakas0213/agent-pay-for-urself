@@ -34,6 +34,8 @@
 
 ### 3. 문서 작성 규칙
 - 코드에 추가나 변경 사항이 있으면 문서 또한 실시간으로 수정해 싱크를 맞춘다.
+- 백엔드 공개 API 계약에 영향을 주는 변경이 있으면 `docs/api-contracts.md`를 같은 작업에서 반드시 함께 갱신한다.
+- 특히 `agent_pay_for_urself/api/routes/`, `agent_pay_for_urself/api/models/`, `agent_pay_for_urself/api/services/`, `agent_pay_for_urself/api/mappers/workflow.py` 변경 시 API 명세 최신화를 필수 단계로 본다.
 - 문서를 새로 작성하거나 수정할 때는 먼저 `docs/DOCS_GUIDE.md`를 읽고 그 구조, 문서 단위, 유지 규칙을 따른다.
 - `docs/` 디렉터리의 시작점은 `docs/README.md`이며, 새로운 세부 문서를 추가할 때는 index 성격의 문서도 함께 갱신한다.
 - 각 문서는 자신이 설명하는 범위, 관련 코드 경로, 언제 갱신해야 하는지를 빠르게 판단할 수 있게 작성한다.
@@ -63,4 +65,5 @@
 - `docs/domain-rules.md`: 투자 판단 원칙, 금지 사항, 도메인 제약.
 - `docs/DOCS_GUIDE.md`: 문서 구조와 갱신 규칙.
 - `docs/TESTS_GUIDE.md`: 테스트 작성, 수정, 리뷰 기준.
-- 'docs/korea-investment-api.md: 한국투자 open api 사용 설명서. 
+- `docs/api-contracts.md`: 현재 백엔드 공개 API 명세와 요청/응답 계약.
+- `docs/korea-investment-api.md`: 한국투자 Open API 사용 설명서.

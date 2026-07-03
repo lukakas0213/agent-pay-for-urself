@@ -10,6 +10,11 @@ from agent_pay_for_urself.repositories.agent_prompts import (
     AgentPromptRepository,
     JsonFileAgentPromptRepository,
 )
+from agent_pay_for_urself.repositories.agent_settings import (
+    AGENT_SETTINGS_DEFAULTS,
+    AgentSettingsRepository,
+    JsonFileAgentSettingsRepository,
+)
 from agent_pay_for_urself.repositories.experiments import (
     ExperimentRepository,
     JsonFileExperimentRepository,
@@ -26,6 +31,9 @@ from agent_pay_for_urself.repositories.workflow_runs import (
 
 __all__ = [
     "AGENT_PROMPT_DEFAULTS",
+    "JsonFileAgentSettingsRepository",
+    "AgentSettingsRepository",
+    "AGENT_SETTINGS_DEFAULTS",
     "AccountConnectionRepository",
     "AccountConnectionSettings",
     "AgentPromptRepository",

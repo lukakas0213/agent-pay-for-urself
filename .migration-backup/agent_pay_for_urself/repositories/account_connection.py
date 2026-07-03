@@ -17,6 +17,7 @@ class AccountConnectionSettings:
     broker: str = "kis_mock"
     account_number: str = ""
     account_product_code: str = "01"
+    toss_account_id: str = ""
 
 
 AccountConnectionPayload = dict[str, Any]
@@ -45,6 +46,7 @@ class JsonFileAccountConnectionRepository(AccountConnectionRepository):
             broker=str(payload.get("broker", "kis_mock")).strip() or "kis_mock",
             account_number=str(payload.get("account_number", "")).strip(),
             account_product_code=(str(payload.get("account_product_code", "01")).strip() or "01"),
+            toss_account_id=str(payload.get("toss_account_id", "")).strip(),
         )
 
     def save(self, settings: AccountConnectionSettings) -> AccountConnectionSettings:
@@ -53,6 +55,7 @@ class JsonFileAccountConnectionRepository(AccountConnectionRepository):
             "broker": settings.broker,
             "account_number": settings.account_number,
             "account_product_code": settings.account_product_code,
+            "toss_account_id": settings.toss_account_id,
         }
         self._path.parent.mkdir(parents=True, exist_ok=True)
         temp_path = self._path.with_suffix(f"{self._path.suffix}.tmp")
