@@ -39,6 +39,7 @@ const COMPANY_SYMBOL_ALIASES: Record<string, string> = {
 };
 
 const TICKER_PATTERN = /\b[A-Z]{1,5}\b/g;
+const TICKER_STOP_WORDS = new Set(["BUY", "SELL", "HOLD", "LONG", "SHORT"]);
 
 function extractSymbols(...texts: string[]): string[] {
   const extracted: string[] = [];
@@ -50,7 +51,7 @@ function extractSymbols(...texts: string[]): string[] {
       }
     }
     const tickers = text.match(TICKER_PATTERN) ?? [];
-    extracted.push(...tickers);
+    extracted.push(...tickers.filter((ticker) => !TICKER_STOP_WORDS.has(ticker)));
   }
   return mergeSymbols(extracted);
 }
@@ -73,8 +74,10 @@ function mergeSymbols(...groups: string[][]): string[] {
 function buildSupervisorDirective(request: InvestmentRequest, mandate: InvestmentMandate): SupervisorDirective {
   const objective = request.user_prompt.trim() || mandate.objective;
   const mentionedSymbols = extractSymbols(request.user_prompt, ...request.chat_messages);
-  const focusSymbols = mergeSymbols(request.symbols, mentionedSymbols);
-  const watchSymbols = mentionedSymbols.filter((s) => !request.symbols.includes(s));
+  const requestedSymbols = mergeSymbols(request.symbols);
+  const focusSymbols = mergeSymbols(requestedSymbols, mentionedSymbols);
+  const requestedSymbolSet = new Set(requestedSymbols);
+  const watchSymbols = mentionedSymbols.filter((symbol) => !requestedSymbolSet.has(symbol));
   const guidance = request.chat_messages.map((m) => m.trim()).filter(Boolean);
 
   const summaryParts: string[] = [];
@@ -96,18 +99,17 @@ function checkMandateViolations(
   mandate: InvestmentMandate,
 ): MandateViolation[] {
   const violations: MandateViolation[] = [];
+  const allowedSymbols = new Set(mergeSymbols(mandate.allowed_symbols));
+  const excludedSymbols = new Set(mergeSymbols(mandate.excluded_symbols));
   for (const symbol of symbols) {
-    if (
-      mandate.allowed_symbols.length > 0 &&
-      !mandate.allowed_symbols.includes(symbol)
-    ) {
+    if (allowedSymbols.size > 0 && !allowedSymbols.has(symbol)) {
       violations.push({
         symbol,
         rule: "allowed_symbols",
         message: `${symbol} is not in the mandate allowed_symbols list.`,
       });
     }
-    if (mandate.excluded_symbols.includes(symbol)) {
+    if (excludedSymbols.has(symbol)) {
       violations.push({
         symbol,
         rule: "excluded_symbols",

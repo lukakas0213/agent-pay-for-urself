@@ -12,6 +12,7 @@ export function buildApiUrl(path: string) {
     baseIncludesApiPrefix && normalizedPath.startsWith("/api")
       ? normalizedPath.replace(/^\/api(?=\/|$)/, "") || "/"
       : normalizedPath;
+  const relativeBackendPath = backendPath.replace(/^\/+/, "");
 
-  return new URL(backendPath, `${trimmedBaseUrl}/`).toString();
+  return new URL(relativeBackendPath || ".", `${trimmedBaseUrl}/`).toString();
 }

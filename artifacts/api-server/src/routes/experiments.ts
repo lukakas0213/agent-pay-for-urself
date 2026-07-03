@@ -46,15 +46,17 @@ router.post("/experiments/from-run", (req, res) => {
   const runId = typeof body.run_id === "string" ? body.run_id : null;
 
   let result: WorkflowResult | null = null;
+  const postedResult =
+    body.result && typeof body.result === "object" ? (body.result as WorkflowResult) : null;
 
   if (runId) {
-    result = getWorkflowRun(runId) ?? null;
-    if (!result) {
+    result = getWorkflowRun(runId) ?? postedResult;
+    if (!result && !postedResult) {
       res.status(404).json({ error: "저장된 실행 결과를 찾을 수 없습니다." });
       return;
     }
-  } else if (body.result && typeof body.result === "object") {
-    result = body.result as WorkflowResult;
+  } else if (postedResult) {
+    result = postedResult;
   }
 
   if (!result) {
