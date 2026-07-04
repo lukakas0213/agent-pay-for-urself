@@ -139,19 +139,11 @@ export function AgentWorkspace({ agentKey }: Props) {
       }));
     }
 
-    if (agentKey === "order_execution") {
-      return latestResult.orders.map((item) => ({
-        title: item.symbol,
-        body: item.reason,
-        meta: `${item.should_submit ? "제출 가능" : "제출 불가"} / 수량 ${item.quantity}`,
-      }));
-    }
-
     return [
       {
-        title: "평가 로그",
-        body: latestResult.evaluation_log.notes.join(" / ") || "후속 메모 없음",
-        meta: `판단 ${latestResult.evaluation_log.decision_count} / 주문 ${latestResult.evaluation_log.order_count}`,
+        title: "시스템 피드백",
+        body: latestResult.feedback.follow_up_actions.join(" / ") || latestResult.feedback.summary || "후속 피드백 없음",
+        meta: latestResult.feedback.monitored_agents.join(", ") || "감시 대상 없음",
       },
     ];
   })();

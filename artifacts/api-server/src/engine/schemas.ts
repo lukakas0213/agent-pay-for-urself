@@ -74,21 +74,14 @@ export interface TradeDecision {
   risk_approved: boolean;
 }
 
-export interface OrderPlan {
-  symbol: string;
-  action: TradeAction;
-  quantity: number;
-  broker_exchange_code: string | null;
-  limit_price: number | null;
-  should_submit: boolean;
-  reason: string;
-}
-
-export interface EvaluationLog {
-  decision_count: number;
-  order_count: number;
-  blocked_order_count: number;
-  notes: string[];
+export interface WorkflowFeedback {
+  summary: string;
+  collection_feedback: string[];
+  analysis_feedback: string[];
+  report_feedback: string[];
+  decision_feedback: string[];
+  follow_up_actions: string[];
+  monitored_agents: string[];
 }
 
 export interface WorkflowResult {
@@ -110,7 +103,6 @@ export interface WorkflowResult {
   analysis_signals: AnalysisSignal[];
   investment_reports: InvestmentReport[];
   decisions: TradeDecision[];
-  orders: OrderPlan[];
-  evaluation_log: EvaluationLog;
+  feedback: WorkflowFeedback;
   mandate_violations: MandateViolation[];
 }

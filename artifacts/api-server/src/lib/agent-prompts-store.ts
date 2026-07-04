@@ -3,8 +3,7 @@ export type AgentKey =
   | "data_analysis"
   | "report"
   | "buy_sell"
-  | "order_execution"
-  | "log_evaluation";
+  | "feedback";
 
 export interface AgentPromptDefinition {
   label: string;
@@ -13,34 +12,29 @@ export interface AgentPromptDefinition {
 
 const defaultPrompts: Record<AgentKey, AgentPromptDefinition> = {
   data_collection: {
-    label: "데이터 수집",
+    label: "데이터 수집 에이전트",
     prompt:
-      "각 종목에 대해 최신 시세, 관련 뉴스 헤드라인, 그리고 주요 재무 지표(PER, 시가총액 등)를 수집하라. 수집한 데이터는 구조화된 JSON 형식으로 반환하라.",
+      "각 종목에 대해 최신 시세, 관련 뉴스 헤드라인, 주요 재무 지표를 수집하라. 누락된 데이터가 있으면 명시하라.",
   },
   data_analysis: {
-    label: "데이터 분석",
+    label: "데이터 분석 에이전트",
     prompt:
       "수집된 시장 데이터를 기반으로 각 종목의 가격 모멘텀, 뉴스 감성, 재무 건전성을 0~1 점수로 평가하고 총점과 분석 근거를 제시하라.",
   },
   report: {
-    label: "보고서 작성",
+    label: "보고서 에이전트",
     prompt:
-      "분석 시그널을 바탕으로 투자 보고서를 작성하라. 강세/약세 포인트, 리스크 플래그, 리스크 승인 여부, 최대 포지션 비중, 추천 액션 편향, 신호 강도를 포함하라.",
+      "분석 시그널을 바탕으로 투자 보고서를 작성하라. 강세/약세 포인트, 리스크 플래그, 최대 포지션 비중, 추천 액션 편향, 신호 강도를 포함하라.",
   },
   buy_sell: {
-    label: "매수/매도 판단",
+    label: "매수/매도 에이전트",
     prompt:
       "투자 보고서를 기반으로 각 종목에 대해 BUY/SELL/HOLD 결정을 내리고 자신감 점수(0~1)와 근거를 명확히 제시하라.",
   },
-  order_execution: {
-    label: "주문 실행",
+  feedback: {
+    label: "피드백 에이전트",
     prompt:
-      "매매 판단을 바탕으로 주문 계획을 수립하라. 수량, 지정가, 제출 가능 여부를 결정하고, 제출 불가 시 사유를 명확히 기재하라.",
-  },
-  log_evaluation: {
-    label: "로그/평가",
-    prompt:
-      "전체 워크플로우 실행을 요약하라. 판단 수, 주문 수, 차단된 주문 수를 집계하고 다음 실행을 위한 확인 사항을 메모로 남겨라.",
+      "전체 시스템을 관찰하고 데이터 수집, 데이터 분석, 보고서, 매수/매도 단계에 대한 피드백을 작성하라. 다음 실행에서 재수집 또는 재분석이 필요한 지점을 구체적으로 제안하라.",
   },
 };
 
@@ -51,8 +45,7 @@ export const agentKeys: AgentKey[] = [
   "data_analysis",
   "report",
   "buy_sell",
-  "order_execution",
-  "log_evaluation",
+  "feedback",
 ];
 
 export function getPromptCatalog(): Record<AgentKey, AgentPromptDefinition> {

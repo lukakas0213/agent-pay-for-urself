@@ -175,7 +175,7 @@
 
 목적:
 메인 에이전트 중심 투자 판단 워크플로우를 실행하고 저장된 결과를 반환한다.
-데이터 수집, 분석, 보고서 작성, 매수/매도 판단, 주문 계획, 평가 로그까지 포함한다.
+데이터 수집, 분석, 보고서 작성, 매수/매도 판단, 피드백 생성까지 포함한다.
 
 요청 모델 `DecisionRequest`:
 
@@ -202,8 +202,7 @@
 * `analysis_signals: list[AnalysisSignalItem]`
 * `investment_reports: list[InvestmentReportItem]`
 * `decisions: list[DecisionItem]`
-* `orders: list[OrderItem]`
-* `evaluation_log: EvaluationLogItem`
+* `feedback: WorkflowFeedbackItem`
 * `mandate_violations: list[MandateViolationItem]`
 
 `SupervisorDirectiveItem`:
@@ -441,7 +440,7 @@
 경로 파라미터:
 
 * `agent_key: str`
-  현재 저장소 기준 지원 키는 `main_agent`, `data_collection`, `data_analysis`, `report`, `buy_sell`, `order_execution`, `log_evaluation` 이다.
+  현재 저장소 기준 지원 키는 `data_collection`, `data_analysis`, `report`, `buy_sell`, `feedback` 이다.
 
 응답:
 
@@ -478,7 +477,7 @@
 
 `AgentSettingsItem`:
 
-* `agent_key: "main_agent" | "data_collection" | "data_analysis" | "report" | "buy_sell" | "order_execution" | "log_evaluation"`
+* `agent_key: "main_agent" | "data_collection" | "data_analysis" | "report" | "buy_sell" | "feedback"`
 * `label: str`
 * `updated_at: str`
 * `source: str`
@@ -518,8 +517,7 @@
 * `data_analysis`
 * `report`
 * `buy_sell`
-* `order_execution`
-* `log_evaluation`
+* `feedback`
 
 응답 모델 `AgentSettingsSaveResponse`:
 
@@ -590,8 +588,7 @@
 * `data_analysis: str`
 * `report: str`
 * `buy_sell: str`
-* `order_execution: str`
-* `log_evaluation: str`
+* `feedback: str`
 
 응답 모델 `ExperimentResponse`:
 
@@ -607,7 +604,7 @@
 
 운영상 의미:
 
-* `live_order_enabled=false` 런타임에서는 실험 결과 저장 전에 제출 가능한 주문 계획을 차단한다.
+* 현재 런타임은 주문 실행 단계 대신 피드백 단계를 저장한다.
 * 차단된 주문은 `quantity=0`, `should_submit=false` 로 내려간다.
 
 ### POST /experiments/from-run

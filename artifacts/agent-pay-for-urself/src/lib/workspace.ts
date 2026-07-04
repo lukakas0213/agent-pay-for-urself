@@ -7,8 +7,7 @@ export type AgentKey =
   | "data_analysis"
   | "report"
   | "buy_sell"
-  | "order_execution"
-  | "log_evaluation";
+  | "feedback";
 
 export type MarketData = {
   symbol: string;
@@ -48,21 +47,14 @@ export type Decision = {
   risk_approved: boolean;
 };
 
-export type OrderPlan = {
-  symbol: string;
-  action: TradeAction;
-  quantity: number;
-  broker_exchange_code: string | null;
-  limit_price: number | null;
-  should_submit: boolean;
-  reason: string;
-};
-
-export type EvaluationLog = {
-  decision_count: number;
-  order_count: number;
-  blocked_order_count: number;
-  notes: string[];
+export type WorkflowFeedback = {
+  summary: string;
+  collection_feedback: string[];
+  analysis_feedback: string[];
+  report_feedback: string[];
+  decision_feedback: string[];
+  follow_up_actions: string[];
+  monitored_agents: string[];
 };
 
 export type Mandate = {
@@ -111,8 +103,7 @@ export type DecisionResponse = {
   analysis_signals: AnalysisSignal[];
   investment_reports: InvestmentReport[];
   decisions: Decision[];
-  orders: OrderPlan[];
-  evaluation_log: EvaluationLog;
+  feedback: WorkflowFeedback;
   mandate_violations: MandateViolation[];
 };
 
@@ -138,8 +129,7 @@ export type PromptOverrides = {
   data_analysis: string;
   report: string;
   buy_sell: string;
-  order_execution: string;
-  log_evaluation: string;
+  feedback: string;
 };
 
 export type ExperimentListItem = {
@@ -245,39 +235,33 @@ export type FrontendWorkspaceSettings = {
 export const agentDefinitions: AgentDefinition[] = [
   {
     key: "data_collection",
-    label: "데이터 수집",
+    label: "데이터 수집 에이전트",
     description: "종목별 시세, 뉴스, 재무 지표를 수집합니다.",
     path: "/agents/data_collection",
   },
   {
     key: "data_analysis",
-    label: "데이터 분석",
+    label: "데이터 분석 에이전트",
     description: "수집한 데이터를 점수와 해석 근거로 압축합니다.",
     path: "/agents/data_analysis",
   },
   {
     key: "report",
-    label: "보고서 작성",
-    description: "주문 전 리스크와 액션 편향을 구조화합니다.",
+    label: "보고서 에이전트",
+    description: "분석 근거와 리스크 플래그를 구조화한 보고서를 작성합니다.",
     path: "/agents/report",
   },
   {
     key: "buy_sell",
-    label: "매수/매도 판단",
+    label: "매수/매도 에이전트",
     description: "보고서 결과를 바탕으로 최종 액션을 결정합니다.",
     path: "/agents/buy_sell",
   },
   {
-    key: "order_execution",
-    label: "주문 실행",
-    description: "제출 가능한 주문 계획과 차단 사유를 정리합니다.",
-    path: "/agents/order_execution",
-  },
-  {
-    key: "log_evaluation",
-    label: "로그/평가",
-    description: "전체 실행을 요약하고 다음 확인 지점을 남깁니다.",
-    path: "/agents/log_evaluation",
+    key: "feedback",
+    label: "피드백 에이전트",
+    description: "전체 시스템을 감시하고 재수집/재분석 피드백을 남깁니다.",
+    path: "/agents/feedback",
   },
 ];
 
@@ -300,8 +284,7 @@ export const emptyPromptOverrides: PromptOverrides = {
   data_analysis: "",
   report: "",
   buy_sell: "",
-  order_execution: "",
-  log_evaluation: "",
+  feedback: "",
 };
 
 const FRONTEND_SETTINGS_KEY = "frontend-workspace-settings";
@@ -621,28 +604,26 @@ function normalizeDecision(value: unknown): Decision {
   };
 }
 
-function normalizeOrderPlan(value: unknown): OrderPlan {
+function normalizeWorkflowFeedback(value: unknown, decisions: Decision[]): WorkflowFeedback {
   const item = recordOrNull(value);
-  const action = item?.action;
+  const decisionFeedback = stringArrayOrEmpty(item?.decision_feedback);
+  const monitoredAgents = stringArrayOrEmpty(item?.monitored_agents);
+  const legacyNotes = stringArrayOrEmpty(item?.notes);
 
   return {
-    symbol: stringOrEmpty(item?.symbol),
-    action: action === "BUY" || action === "SELL" || action === "HOLD" ? action : "HOLD",
-    quantity: numberOrDefault(item?.quantity),
-    broker_exchange_code: typeof item?.broker_exchange_code === "string" ? item.broker_exchange_code : null,
-    limit_price: typeof item?.limit_price === "number" && Number.isFinite(item.limit_price) ? item.limit_price : null,
-    should_submit: booleanOrDefault(item?.should_submit),
-    reason: stringOrEmpty(item?.reason),
-  };
-}
-
-function normalizeEvaluationLog(value: unknown, decisionCount: number, orderCount: number): EvaluationLog {
-  const item = recordOrNull(value);
-  return {
-    decision_count: numberOrDefault(item?.decision_count, decisionCount),
-    order_count: numberOrDefault(item?.order_count, orderCount),
-    blocked_order_count: numberOrDefault(item?.blocked_order_count),
-    notes: stringArrayOrEmpty(item?.notes),
+    summary: stringOrEmpty(item?.summary) || legacyNotes.join(" / "),
+    collection_feedback: stringArrayOrEmpty(item?.collection_feedback),
+    analysis_feedback: stringArrayOrEmpty(item?.analysis_feedback),
+    report_feedback: stringArrayOrEmpty(item?.report_feedback),
+    decision_feedback:
+      decisionFeedback.length > 0
+        ? decisionFeedback
+        : decisions.filter((decision) => decision.action == "HOLD").map((decision) => `${decision.symbol}: HOLD 유지`),
+    follow_up_actions: stringArrayOrEmpty(item?.follow_up_actions),
+    monitored_agents:
+      monitoredAgents.length > 0
+        ? monitoredAgents
+        : ["data_collection", "data_analysis", "report", "buy_sell"],
   };
 }
 
@@ -673,7 +654,6 @@ export function normalizeDecisionResponse(value: unknown): DecisionResponse | nu
   }
 
   const decisions = mapArray(result.decisions ?? result.trade_decisions, normalizeDecision);
-  const orders = mapArray(result.orders ?? result.order_plans, normalizeOrderPlan);
   const userPrompt = stringOrEmpty(result.user_prompt);
 
   return {
@@ -688,8 +668,7 @@ export function normalizeDecisionResponse(value: unknown): DecisionResponse | nu
     analysis_signals: mapArray(result.analysis_signals, normalizeAnalysisSignal),
     investment_reports: mapArray(result.investment_reports, normalizeInvestmentReport),
     decisions,
-    orders,
-    evaluation_log: normalizeEvaluationLog(result.evaluation_log, decisions.length, orders.length),
+    feedback: normalizeWorkflowFeedback(result.feedback ?? result.evaluation_log, decisions),
     mandate_violations: mapArray(result.mandate_violations, normalizeMandateViolation),
   };
 }

@@ -208,8 +208,8 @@ export function WorkflowReports() {
               <section className="content-section compact-section">
                 <div className="section-head section-head-spaced">
                   <div>
-                    <span className="section-kicker">Decisions and orders</span>
-                    <h2>최종 판단과 주문 계획</h2>
+                    <span className="section-kicker">Decisions and feedback</span>
+                    <h2>최종 판단과 시스템 피드백</h2>
                   </div>
                 </div>
                 <div className="card-grid card-grid-2">
@@ -220,13 +220,13 @@ export function WorkflowReports() {
                       <small>{decision.rationale}</small>
                     </article>
                   ))}
-                  {detail.result.orders.map((order) => (
-                    <article className="info-card" key={`${order.symbol}-order`}>
-                      <strong>{order.symbol}</strong>
-                      <p>{order.should_submit ? "제출 가능" : "제출 불가"} · 수량 {order.quantity}</p>
-                      <small>{order.reason}</small>
-                    </article>
-                  ))}
+                  <article className="info-card" key="workflow-feedback">
+                    <strong>피드백 에이전트</strong>
+                    <p>{detail.result.feedback.summary || "요약 없음"}</p>
+                    <small>후속 액션: {detail.result.feedback.follow_up_actions.join(" / ") || "없음"}</small>
+                    <small>수집 피드백: {detail.result.feedback.collection_feedback.join(" / ") || "없음"}</small>
+                    <small>분석 피드백: {detail.result.feedback.analysis_feedback.join(" / ") || "없음"}</small>
+                  </article>
                 </div>
               </section>
 

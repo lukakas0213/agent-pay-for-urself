@@ -2,24 +2,23 @@
 
 ## 목적
 
-이 문서는 현재 저장소의 멀티 에이전트 투자 워크플로우와 API 진입 경계를 간단한 Mermaid 차트로 보여준다.
+이 문서는 현재 저장소의 멀티 에이전트 투자 워크플로우와 주요 코드 경계를 새 에이전트 구조 기준으로 보여준다.
 
 ## 현재 범위
 
-* 사용자, 웹 UI, FastAPI, API 서비스/의존성 조립, 메인 에이전트 흐름을 포함한다.
-* 현재 저장소 구현과 향후 공통 영속 DB 위치를 구분해서 표현한다.
+* 사용자, 웹 UI, API 서버, 메인 에이전트 흐름을 포함한다.
+* 현재 구현된 내부 그래프 런타임과 향후 외부 LangGraph 교체 지점을 구분해서 표현한다.
 
 ## 관련 코드 경로
 
-* `agent_pay_for_urself/api/app.py`
-* `agent_pay_for_urself/api/dependencies.py`
-* `agent_pay_for_urself/api/routes/`
-* `agent_pay_for_urself/api/services/`
-* `agent_pay_for_urself/orchestrator.py`
-* `agent_pay_for_urself/agents/`
-* `agent_pay_for_urself/adapters/`
-* `agent_pay_for_urself/repositories/`
-* `frontend/`
+* `artifacts/api-server/src/routes/`
+* `artifacts/api-server/src/engine/orchestrator.ts`
+* `artifacts/api-server/src/engine/agents.ts`
+* `artifacts/api-server/src/engine/market-data.ts`
+* `artifacts/api-server/src/lib/agent-prompts-store.ts`
+* `artifacts/api-server/src/lib/history-store.ts`
+* `artifacts/agent-pay-for-urself/src/components/`
+* `artifacts/agent-pay-for-urself/src/lib/workspace.ts`
 
 ## Mermaid Chart
 
@@ -27,60 +26,45 @@
 flowchart LR
     U["사용자"]
     UI["웹 UI"]
-    API["FastAPI 앱"]
-    ROUTES["공개 API 엔드포인트\n/health\n/market-data\n/decisions\n/console/interactions\n/experiments"]
-    DEP["API 서비스 / 의존성 조립"]
+    API["API 서버"]
     MA["메인 에이전트"]
 
-    DC["데이터 수집"]
-    DA["데이터 분석"]
-    RM["리스크 관리"]
-    BS["매수/매도 판단"]
-    OE["주문 계획"]
-    PG["정책 가드레일"]
-    LE["로그/평가"]
+    DC["데이터 수집 에이전트"]
+    DA["데이터 분석 에이전트"]
+    RP["보고서 에이전트"]
+    BS["매수/매도 에이전트"]
+    FB["피드백 에이전트"]
 
-    MDP["시장 데이터 제공자\nStub 또는 Yahoo Finance"]
-    LLM["선택적 LLM 계층"]
-    BROKER["증권사 어댑터 경계\n현재는 Noop"]
-
-    WR["현재 워크플로우 저장소\nIn-memory"]
-    ER["현재 실험 저장소\nJSON 파일"]
-    DB["향후 공통 영속 DB\nSQLite 또는 PostgreSQL"]
+    MDP["시장 데이터 제공자\n현재 Stub"]
+    RUNS["현재 run 저장소\nIn-memory"]
+    HIST["현재 히스토리 저장소\nJSON 파일"]
+    LG["현재 내부 그래프 런타임
+향후 외부 LangGraph로 교체 가능"]
 
     U <--> UI
     UI <--> API
-    API --> ROUTES
-    ROUTES --> DEP
-    DEP --> MA
+    API --> MA
+    API --> RUNS
+    API --> HIST
 
     MA --> DC
+    DC --> MA
     MA --> DA
-    MA --> RM
+    DA --> MA
+    MA --> RP
+    RP --> MA
     MA --> BS
-    MA --> OE
-    MA --> PG
-    MA --> LE
+    BS --> MA
+    MA --> FB
 
     DC --> MDP
-    DC -. 선택적 .-> LLM
-    DA -. 선택적 .-> LLM
-    RM -. 선택적 .-> LLM
-    BS -. 선택적 .-> LLM
-    OE -. 선택적 .-> LLM
-    LE -. 선택적 .-> LLM
-
-    DEP --> WR
-    DEP --> ER
-    WR -. 나중에 DB로 교체 .-> DB
-    ER -. 나중에 DB로 이전 또는 통합 .-> DB
-
-    OE -. 실주문 경계 .-> BROKER
+    FB --> LG
+    LG -. 재수집 .-> DC
+    LG -. 재분석 .-> DA
 ```
 
 ## 수정 트리거
 
-* 공개 엔드포인트 묶음 구성이 크게 바뀔 때
-* API 서비스 조립 방식이나 저장소 경계가 바뀔 때
-* 에이전트 단계, 정책 가드레일, 외부 연동 경계가 바뀔 때
-* 영속 DB가 실제 구현되어 현재 저장소 경계가 바뀔 때
+* 에이전트 단계 이름이나 순서가 바뀔 때
+* 피드백 루프가 실제 LangGraph로 구현될 때
+* 저장소 경계나 API 진입 구성이 바뀔 때

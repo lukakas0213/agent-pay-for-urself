@@ -1,13 +1,13 @@
 import type { AgentKey } from "../lib/agent-prompts-store";
 import type {
   AnalysisSignal,
-  EvaluationLog,
   InvestmentReport,
   InvestmentRequest,
+  MandateViolation,
   MarketData,
-  OrderPlan,
   TradeAction,
   TradeDecision,
+  WorkflowFeedback,
 } from "./schemas";
 
 const ATTRACTIVE_PE_RATIO = 25.0;
@@ -17,7 +17,6 @@ const PRICE_SCORE_NEUTRAL = 0.5;
 const NEWS_SCORE_SINGLE_HEADLINE = 0.55;
 const FINANCIAL_SCORE_ATTRACTIVE = 0.7;
 const FINANCIAL_SCORE_NEUTRAL = 0.5;
-const DEFAULT_ORDER_QUANTITY = 1;
 
 type AgentPromptMap = Record<AgentKey, string>;
 
@@ -166,62 +165,79 @@ export function runBuySellAgent(
   });
 }
 
-export function runOrderExecutionAgent(
+export function runFeedbackAgent(
   decisions: TradeDecision[],
+  reports: InvestmentReport[],
   marketData: MarketData[],
-  prompt: string,
-): OrderPlan[] {
-  const mdBySymbol = new Map(marketData.map((d) => [d.symbol, d]));
-  const promptNote = summarizePrompt(prompt);
-
-  return decisions.map((decision) => {
-    const md = mdBySymbol.get(decision.symbol) ?? null;
-    const shouldSubmit =
-      (decision.action === "BUY" || decision.action === "SELL") && decision.risk_approved;
-    const quantity = shouldSubmit ? DEFAULT_ORDER_QUANTITY : 0;
-    const brokerExchangeCode = md?.broker_exchange_code ?? null;
-    const limitPrice = md !== null ? Math.round(md.latest_price * 100) / 100 : null;
-
-    let reason: string;
-    if (!shouldSubmit) {
-      reason = "no executable order";
-    } else if (brokerExchangeCode === null) {
-      reason = "ready for broker adapter; broker exchange code unavailable";
-    } else {
-      reason = "ready for broker adapter";
-    }
-
-    return {
-      symbol: decision.symbol,
-      action: decision.action,
-      quantity,
-      broker_exchange_code: brokerExchangeCode,
-      limit_price: limitPrice,
-      should_submit: shouldSubmit,
-      reason: `${reason}; ${promptNote}`,
-    };
-  });
-}
-
-export function runLogEvaluationAgent(
-  decisions: TradeDecision[],
-  orders: OrderPlan[],
+  mandateViolations: MandateViolation[],
   prompts: AgentPromptMap,
-): EvaluationLog {
-  const blockedOrderCount = orders.filter((o) => !o.should_submit).length;
-  const notes = decisions.map((d) => `${d.symbol}: ${d.action}`);
+): WorkflowFeedback {
+  const collectionFeedback: string[] = [];
+  const analysisFeedback: string[] = [];
+  const reportFeedback: string[] = [];
+  const decisionFeedback: string[] = [];
+  const followUpActions: string[] = [];
 
-  notes.push(`data_collection ${summarizePrompt(prompts.data_collection)}`);
-  notes.push(`data_analysis ${summarizePrompt(prompts.data_analysis)}`);
-  notes.push(`report ${summarizePrompt(prompts.report)}`);
-  notes.push(`buy_sell ${summarizePrompt(prompts.buy_sell)}`);
-  notes.push(`order_execution ${summarizePrompt(prompts.order_execution)}`);
-  notes.push(`log_evaluation ${summarizePrompt(prompts.log_evaluation)}`);
+  const marketDataBySymbol = new Map(marketData.map((item) => [item.symbol, item]));
+
+  for (const item of marketData) {
+    if (item.news_headlines.length === 0) {
+      collectionFeedback.push(`${item.symbol}: 뉴스 데이터가 비어 있어 재수집 후보입니다.`);
+    }
+    if (Object.keys(item.financial_metrics).length === 0) {
+      collectionFeedback.push(`${item.symbol}: 재무 지표가 부족해 재수집이 필요합니다.`);
+    }
+  }
+
+  for (const report of reports) {
+    const md = marketDataBySymbol.get(report.symbol);
+    if (!md) {
+      analysisFeedback.push(`${report.symbol}: 원본 시장 데이터가 없어 분석 신뢰도가 낮습니다.`);
+      continue;
+    }
+    if (md.news_headlines.length === 0 || md.financial_metrics["pe_ratio"] === undefined) {
+      analysisFeedback.push(`${report.symbol}: 데이터 결손으로 분석을 다시 수행할 여지가 있습니다.`);
+    }
+    if (!report.risk_approved) {
+      reportFeedback.push(`${report.symbol}: 보고서 리스크 승인 실패 - ${report.risk_flags.join("; ")}`);
+    }
+  }
+
+  for (const decision of decisions) {
+    if (!decision.risk_approved) {
+      decisionFeedback.push(`${decision.symbol}: 리스크 미승인으로 ${decision.action} 대신 보류 상태입니다.`);
+    } else if (decision.action === "HOLD") {
+      decisionFeedback.push(`${decision.symbol}: 판단 보류. 추가 데이터나 재분석을 검토하세요.`);
+    }
+  }
+
+  for (const violation of mandateViolations) {
+    followUpActions.push(`${violation.symbol}: mandate 위반 해결 전까지 재실행보다 정책 수정 여부를 먼저 확인하세요.`);
+  }
+
+  if (collectionFeedback.length > 0) {
+    followUpActions.push("데이터 수집 에이전트에 부족한 뉴스/재무 지표 재요청");
+  }
+  if (analysisFeedback.length > 0) {
+    followUpActions.push("데이터 분석 에이전트에 결손 데이터 기반 종목 재분석 요청");
+  }
+  if (reportFeedback.length > 0) {
+    followUpActions.push("보고서 에이전트에 리스크 사유를 더 구체적으로 재정리 요청");
+  }
+  if (decisionFeedback.length > 0) {
+    followUpActions.push("매수/매도 에이전트에 HOLD 근거를 보강하거나 판단 유예 유지");
+  }
+  if (followUpActions.length === 0) {
+    followUpActions.push("현재 시스템 상태 양호. 다음 사이클에서도 동일한 점검 순서를 유지");
+  }
 
   return {
-    decision_count: decisions.length,
-    order_count: orders.length,
-    blocked_order_count: blockedOrderCount,
-    notes,
+    summary: `monitored ${decisions.length} decision(s); ${summarizePrompt(prompts.feedback)}`,
+    collection_feedback: collectionFeedback,
+    analysis_feedback: analysisFeedback,
+    report_feedback: reportFeedback,
+    decision_feedback: decisionFeedback,
+    follow_up_actions: followUpActions,
+    monitored_agents: ["data_collection", "data_analysis", "report", "buy_sell"],
   };
 }

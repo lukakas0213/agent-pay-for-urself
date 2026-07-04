@@ -2,133 +2,95 @@
 
 ## Current Scope
 
-* The current implementation is a minimum workflow skeleton.
-* Live market data can now be enabled through a Yahoo Finance provider, and a Korea Investment mock broker adapter can be configured for overseas paper-trading submission while durable persistent storage remains unwired.
-* Workflow results are stored in an in-memory run repository for immediate follow-up interactions, and the public decision payload is also persisted to a local JSON history store for history and reports screens.
-* Each workflow agent can optionally route through a shared LLM template layer backed by OpenAI Responses API, and the runtime can assign a different model per agent.
-* `MainAgent` owns the user mandate for each run, interprets the primary user prompt and follow-up chat through the shared LLM layer when enabled, and enforces the resulting operating boundary through `PolicyGuardrail`.
-* The FastAPI layer configures a shared console handler for the `agent_pay_for_urself` namespace so request start/completion and workflow/order completion logs are visible in the CLI.
-* If `OPENAI_API_KEY` is not configured, the workflow falls back to deterministic in-process logic and does not call an external LLM.
+* 현재 저장소는 멀티 에이전트 투자 워크플로우의 최소 동작 버전을 가진다.
+* 백엔드는 `artifacts/api-server`, 프론트는 `artifacts/agent-pay-for-urself`에 있다.
+* 실행 결과는 메모리 기반 run 저장소와 로컬 JSON 히스토리에 저장된다.
+* 현재 런타임은 TypeScript 기반 내부 `StateGraph` 컴파일드 그래프다.
 
-## Broker Direction
-
-* Default broker target: `Korea Investment & Securities Open API`
-* Default execution market: US equities via overseas stock trading
-* Broker integration should be isolated behind an adapter interface so the orchestrator and agents stay broker-agnostic.
-
-## Minimum Agent Flow
+## Current Agent Flow
 
 ```mermaid
 flowchart LR
     U[사용자]
     UI[Web UI]
-    API[FastAPI]
+    API[API Server]
     MA[메인 에이전트]
 
     DC[데이터 수집 에이전트]
     DA[데이터 분석 에이전트]
-    RM[리스크 관리 에이전트]
+    RP[보고서 에이전트]
     BS[매수/매도 에이전트]
-    OE[주문 실행 에이전트]
-    LE[로그/평가 에이전트]
+    FB[피드백 에이전트]
 
-    LLM[Shared LLM Template Layer]
-    PG[Policy Guardrail]
     MDP[Market Data Provider]
-    BA[Broker Adapter]
     WR[Workflow Run Repository]
+    HR[Workflow History Store]
 
     U <--> UI
     UI <--> API
     API --> MA
     API --> WR
+    API --> HR
 
     MA --> DC
+    DC --> MA
     MA --> DA
-    MA --> RM
+    DA --> MA
+    MA --> RP
+    RP --> MA
     MA --> BS
-    MA --> OE
-    MA --> LE
+    BS --> MA
+    MA --> FB
 
     DC --> MDP
-    DC -. optional .-> LLM
-    DA -. optional .-> LLM
-    RM -. optional .-> LLM
-    BS -. optional .-> LLM
-    OE -. optional .-> LLM
-    LE -. optional .-> LLM
-    MA --> PG
-    PG --> BS
-    PG --> OE
-    OE -. live submit boundary .-> BA
+    FB -. future re-request loop .-> DC
+    FB -. future re-analysis loop .-> DA
 ```
 
-## API Layout
+## Current Implementation Notes
 
-* `agent_pay_for_urself/api/main.py` only exposes the ASGI entrypoint.
-* `agent_pay_for_urself/api/app.py` creates the FastAPI application and registers routers.
-* `agent_pay_for_urself/api/routes/` contains HTTP endpoints.
-* `agent_pay_for_urself/api/models/` contains public Pydantic request and response models, including optional mandate input and mandate violation output.
-* `agent_pay_for_urself/api/mappers/` converts internal workflow dataclasses into API responses.
-* `agent_pay_for_urself/api/services/` contains API-facing workflow and console assistant logic.
-* `/console/interactions` is the primary console-assistant endpoint and can optionally append a follow-up natural-language instruction to a stored run before rerunning the workflow.
-* `/runs` and `/runs/{run_id}` expose durable run history derived from stored public workflow payloads, including follow-up rerun lineage metadata.
-* `/experiments` runs and stores Web UI experiment-lab requests with experiment metadata, decision input, prompt overrides, runtime summary, and workflow result.
-* `/agent/interactions` remains as a deprecated compatibility alias.
-* The frontend is built as a static export for Cloudflare Pages. Local development keeps the `/api/:path*` rewrite, while production requests use the build-time `NEXT_PUBLIC_API_BASE_URL` value.
+* 오케스트레이터: `artifacts/api-server/src/engine/orchestrator.ts`
+* 단계 로직: `artifacts/api-server/src/engine/agents.ts`
+* 프롬프트 계약: `artifacts/api-server/src/lib/agent-prompts-store.ts`
+* 히스토리 타임라인: `artifacts/api-server/src/routes/history.ts`
+* 프론트 타입/정규화: `artifacts/agent-pay-for-urself/src/lib/workspace.ts`
 
-## Implementation Notes
+현재 워크플로우 순서는 아래와 같다.
 
-* `MainAgent` is the only component that coordinates other agents and it now combines two internal roles: LLM-based user-intent interpretation plus code-based workflow orchestration.
-* The current runtime is still a sequential Python orchestrator. `langgraph` is installed as a dependency, but the workflow has not yet been migrated to a compiled LangGraph runtime.
-* The current workflow order is collection -> analysis -> risk assessment -> buy/sell decision -> order planning -> evaluation.
-* Agent outputs use structured dataclasses in `agent_pay_for_urself.schemas`.
-* `InvestmentMandate` captures the user-owned operating boundary for a run, while `SupervisorDirective` captures the main agent's structured interpretation of `user_prompt` and `chat_messages` for the current cycle.
-* `PolicyGuardrail` clamps decisions and order plans that violate allowed or excluded symbols before evaluation logging.
-* `agent_pay_for_urself/llm/` contains the shared OpenAI client, JSON payload helpers, schema parsing helpers, and the per-agent model routing table used by LLM-enabled agents.
-* `DataCollectionAgent` depends on a `MarketDataProvider` boundary; `StubMarketDataProvider` remains the deterministic default and `YahooFinanceMarketDataProvider` can be selected with `MARKET_DATA_PROVIDER=yahoo`.
-* `OrderExecutionAgent` currently creates order plans only; explicit live broker submission is exposed through the `orders` API routes and the shared `BrokerAdapter` boundary. The default implementation is `NoopBrokerAdapter`, and `KisMockBrokerAdapter` can be configured for paper trading.
-* `DecisionWorkflowService` stores `WorkflowResult` values in `InMemoryWorkflowRunRepository`, returns a `run_id` to the API caller, reports runtime mode metadata for decision responses, and can rerun a stored workflow with an appended follow-up message.
-* `ExperimentService` runs the same orchestrator with optional `AgentPromptOverrides`, stores the run in the in-memory workflow repository, and persists the public experiment payload in `JsonFileExperimentRepository`.
-* Real data providers, durable repositories, and broker adapters should be added behind these explicit interfaces.
-* The first broker adapter should target `Korea Investment & Securities Open API`.
-* The first live execution scope should cover overseas stock order submission, order status checks, and execution result collection.
+1. 메인 에이전트가 `SupervisorDirective`를 만든다.
+2. 데이터 수집 에이전트가 `MarketData[]`를 만든다.
+3. 데이터 분석 에이전트가 `AnalysisSignal[]`를 만든다.
+4. 보고서 에이전트가 `InvestmentReport[]`를 만든다.
+5. 매수/매도 에이전트가 `TradeDecision[]`를 만든다.
+6. 피드백 에이전트가 `WorkflowFeedback`을 만든다.
 
-## Future Integration Template
+## Current Graph Runtime
 
-### Data Provider Adapter
+현재 그래프 런타임은 `artifacts/api-server/src/engine/state-graph.ts` 와 `artifacts/api-server/src/engine/workflow-graph.ts` 에 있다.
 
-* Status: `Stub and Yahoo Finance implemented`
-* Runtime source: `StubMarketDataProvider` or `YahooFinanceMarketDataProvider`
-* Live provider contract: `MarketDataProvider.get_market_data`
+이미 하고 있는 일은 다음과 같다.
 
-### Broker Adapter
+* 메인 에이전트를 라우터 노드로 사용
+* 각 서브 에이전트 실행 후 다시 메인 에이전트로 복귀
+* 피드백 결과에 따라 데이터 수집 또는 데이터 분석으로 재진입
+* 최대 재시도 횟수로 루프 종료
 
-* Status: `Noop and KIS mock adapter implemented`
-* First target: `Korea Investment & Securities Open API`
-* Runtime selection: `BROKER_ADAPTER=noop` or `BROKER_ADAPTER=kis_mock`
-* Submit order contract: `BrokerAdapter.submit_order`
-* Order status contract: `BrokerAdapter.get_order_status`
+아직 하지 않는 일은 다음과 같다.
 
-### Persistence Layer
+* 외부 `@langchain/langgraph` 패키지 사용
+* checkpoint persistence
+* streaming / interrupt / resumable execution
 
-* Status: `In-memory workflow runs plus local JSON run history and experiment history`
-* Workflow run repository: `InMemoryWorkflowRunRepository`
-* Workflow history repository: `JsonFileWorkflowHistoryRepository` storing `data/workflow-runs.json` by default
-* Experiment history repository: `JsonFileExperimentRepository` storing `data/experiments.json` by default
-* Durable multi-user storage contract: `TBD`
+## Persistence
 
-### Agent LLM Prompt Layer
+* 현재 workflow run 저장소: in-memory
+* 현재 workflow history 저장소: local JSON
+* 실험/보고서 화면은 저장된 public payload를 재사용한다.
 
-* Status: `Shared template implemented with experiment prompt overrides`
-* Runtime source: `OpenAIResponsesClient` or `NoopAgentLLMClient`
-* Default model: `gpt-5.5`
-* Per-agent model contract: `OPENAI_MAIN_AGENT_MODEL`, `OPENAI_DATA_COLLECTION_MODEL`, `OPENAI_DATA_ANALYSIS_MODEL`, `OPENAI_RISK_MANAGEMENT_MODEL`, `OPENAI_BUY_SELL_MODEL`, `OPENAI_ORDER_EXECUTION_MODEL`, and `OPENAI_LOG_EVALUATION_MODEL` can override the default model per agent
-* Per-agent prompt contract: Web experiment overrides are appended as run-specific guidance and cannot replace the schema-preserving base instruction.
+## Future LangGraph Migration Target
 
-### Policy Guardrail
+LangGraph로 옮길 때의 목표는 아래다.
 
-* Status: `Mandate boundary implemented`
-* Runtime source: `PolicyGuardrail`
-* Current hard checks: `allowed_symbols`, `excluded_symbols`
-* Future policy checks: `TBD`
+* 외부 LangGraph 패키지로 동일 그래프를 교체
+* checkpoint와 durable state를 추가
+* streaming/visualization/debug tooling을 붙인다

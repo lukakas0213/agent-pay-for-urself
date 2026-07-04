@@ -21,14 +21,14 @@
 
 ## Local Development
 
-Replit baseline toolchain:
+기준 툴체인:
 
 - Node.js `24`
 - pnpm `9.15.9`
 
-로컬 Node가 `18.x`면 프론트엔드가 실행되지 않습니다. 현재 프론트는 `Vite 7`을 사용하고 있어 최소 Node `20.19+` 또는 `22.12+`가 필요하며, 이 저장소의 기준 환경은 Replit과 동일한 Node `24`입니다.
+로컬 Node가 `18.x`면 프론트엔드가 실행되지 않습니다. 프론트는 `Vite 7`을 사용하므로 최소 Node `20.19+` 또는 `22.12+`가 필요하고, 이 저장소의 기준은 Node `24`입니다.
 
-예시:
+Node 24 준비 예시:
 
 ```bash
 nvm use 24
@@ -36,14 +36,13 @@ corepack enable
 corepack prepare pnpm@9.15.9 --activate
 ```
 
-
 의존성 설치:
 
 ```bash
 pnpm install
 ```
 
-이 저장소는 `.env`를 자동 로드하지 않습니다. 각 터미널에서 먼저 환경변수를 올립니다.
+실행 전 `.env`를 로드합니다. 이 저장소는 `.env`를 자동으로 읽지 않습니다.
 
 ```bash
 cd /home/ubuntu/Desktop/lucas/agent-pay-for-urself
@@ -52,15 +51,13 @@ source .env
 set +a
 ```
 
-백엔드 실행:
+실행 순서:
 
 ```bash
+# 1) 백엔드
 PORT=5000 pnpm --filter @workspace/api-server run dev
-```
 
-프론트 실행:
-
-```bash
+# 2) 프론트엔드
 PORT=23827 BASE_PATH=/ API_PORT=5000 pnpm --filter @workspace/agent-pay-for-urself run dev
 ```
 

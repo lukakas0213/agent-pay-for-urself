@@ -51,10 +51,9 @@ const AGENT_LABELS: Array<[string, string]> = [
   ["main_agent", "메인 에이전트"],
   ["data_collection", "데이터 수집"],
   ["data_analysis", "데이터 분석"],
-  ["report", "보고서 작성"],
-  ["buy_sell", "매수/매도 판단"],
-  ["order_execution", "주문 실행"],
-  ["log_evaluation", "로그/평가"],
+  ["report", "보고서"],
+  ["buy_sell", "매수/매도"],
+  ["feedback", "피드백"],
 ];
 
 function buildAgentStatuses(result: WorkflowResult): AgentStatusItem[] {
@@ -64,8 +63,7 @@ function buildAgentStatuses(result: WorkflowResult): AgentStatusItem[] {
     data_analysis: result.analysis_signals.length > 0 ? "connected" : "disconnected",
     report: result.investment_reports.length > 0 ? "connected" : "disconnected",
     buy_sell: result.decisions.length > 0 ? "connected" : "disconnected",
-    order_execution: result.orders.length > 0 ? "connected" : "disconnected",
-    log_evaluation: result.evaluation_log.decision_count >= 0 ? "connected" : "disconnected",
+    feedback: result.feedback.summary ? "connected" : "disconnected",
   };
   return AGENT_LABELS.map(([agent_key, label]) => ({
     agent_key,
@@ -96,27 +94,21 @@ function buildTimeline(result: WorkflowResult): TimelineEventItem[] {
     ],
     [
       "report",
-      "보고서 작성",
+      "보고서 생성",
       `${result.investment_reports.length}개 보고서 작성 완료`,
       result.investment_reports.length > 0 ? "connected" : "disconnected",
     ],
     [
       "buy_sell",
-      "매수/매도 판단",
+      "매수/매도 결정",
       `${result.decisions.length}개 최종 판단 생성 완료`,
       result.decisions.length > 0 ? "connected" : "disconnected",
     ],
     [
-      "order_execution",
-      "주문 계획 생성",
-      `${result.orders.length}개 주문 계획 생성 완료`,
-      result.orders.length > 0 ? "connected" : "disconnected",
-    ],
-    [
-      "log_evaluation",
-      "실행 평가 기록",
-      `blocked orders: ${result.evaluation_log.blocked_order_count}`,
-      "connected",
+      "feedback",
+      "시스템 피드백 생성",
+      result.feedback.follow_up_actions[0] ?? result.feedback.summary,
+      result.feedback.summary ? "connected" : "disconnected",
     ],
   ];
   return eventSpecs.map(([agent_key, title, detail, status], index) => ({
