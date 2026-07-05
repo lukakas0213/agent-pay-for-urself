@@ -51,7 +51,7 @@
 * `POST /console/interactions`에서 `apply_to_workflow=true`로 생성된 재실행 run은 parent/root lineage와 trigger message를 함께 기록한다.
 * `runtime.llm_mode`는 `model` 또는 `fallback`이다.
 * `runtime.agent_models`는 설정된 경우 에이전트 이름 -> 모델명 매핑을 담는다.
-* `runtime.data_mode`는 현재 구성된 마켓 데이터 provider 이름을 노출하며, 기본 구현에서는 `stub` 또는 `yahoo`가 될 수 있다.
+* `runtime.data_mode`는 현재 구성된 마켓 데이터 provider 이름을 노출하며, 기본 구현에서는 `yahoo` 또는 `stub`이 될 수 있다.
 * `runtime.live_order_enabled`는 현재 런타임이 실제 브로커 주문 제출을 지원하는지 나타낸다.
 
 ## 공통 스키마

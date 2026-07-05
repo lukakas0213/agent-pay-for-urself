@@ -36,13 +36,27 @@ corepack enable
 corepack prepare pnpm@9.15.9 --activate
 ```
 
+`nvm`, `corepack`, `pnpm`이 없는 Ubuntu 기본 환경이면 아래 스크립트로 저장소 로컬에만 Node 24와 pnpm 9.15.9를 준비할 수 있습니다.
+
+```bash
+bash scripts/bootstrap-node24.sh
+export PATH="$PWD/.local-tools/bin:$PWD/.local-tools/node-v24.18.0-linux-$(uname -m | sed 's/aarch64/arm64/; s/x86_64/x64/')/bin:$PATH"
+```
+
 의존성 설치:
 
 ```bash
 pnpm install
 ```
 
+`nvm` 대신 로컬 부트스트랩을 사용한 경우에는 같은 셸에서 아래처럼 실행합니다.
+
+```bash
+PATH="$PWD/.local-tools/bin:$PWD/.local-tools/node-v24.18.0-linux-$(uname -m | sed 's/aarch64/arm64/; s/x86_64/x64/')/bin:$PATH" pnpm install
+```
+
 실행 전 `.env`를 로드합니다. 이 저장소는 `.env`를 자동으로 읽지 않습니다.
+기본 템플릿은 루트의 `.example.env`입니다. 이를 복사해 `.env`를 만들면 됩니다.
 
 ```bash
 cd /home/ubuntu/Desktop/lucas/agent-pay-for-urself
@@ -54,10 +68,10 @@ set +a
 실행 순서:
 
 ```bash
-# 1) 백엔드
+# 1) 백엔드 (코드 수정 시 자동 재빌드/재시작)
 PORT=5000 pnpm --filter @workspace/api-server run dev
 
-# 2) 프론트엔드
+# 2) 프론트엔드 (Vite HMR)
 PORT=23827 BASE_PATH=/ API_PORT=5000 pnpm --filter @workspace/agent-pay-for-urself run dev
 ```
 

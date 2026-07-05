@@ -1,0 +1,452 @@
+[
+  {
+    "experiment_id": "exp-1783228010617",
+    "run_id": "run-c16870bb-765f-494e-9492-50693782da0d",
+    "name": "AAPL, MSFT 자동 저장 보고서",
+    "description": "objective=마이크로소프트 가격은?; focus=AAPL, MSFT",
+    "created_at": "2026-07-05T05:06:50.617Z",
+    "symbols": [
+      "AAPL",
+      "MSFT"
+    ],
+    "decision_actions": {
+      "AAPL": "HOLD",
+      "MSFT": "HOLD"
+    },
+    "runtime": {
+      "data_mode": "yahoo",
+      "llm_mode": "model",
+      "model_name": "gpt-5.4-mini",
+      "agent_models": {
+        "main_agent": "gpt-5.4-mini",
+        "data_collection": "gpt-5.4-mini",
+        "data_analysis": "gpt-5.4-mini",
+        "report": "gpt-5.4-mini",
+        "buy_sell": "gpt-5.4-mini",
+        "risk_management": "gpt-5.4-mini",
+        "order_execution": "gpt-5.4-mini",
+        "log_evaluation": "gpt-5.4-mini",
+        "feedback": "gpt-5.4-mini"
+      },
+      "live_order_enabled": false
+    },
+    "result": {
+      "run_id": "run-c16870bb-765f-494e-9492-50693782da0d",
+      "created_at": "2026-07-05T05:06:50.617Z",
+      "symbols": [
+        "AAPL",
+        "MSFT"
+      ],
+      "user_prompt": "마이크로소프트 가격은?",
+      "chat_messages": [
+        "마이크로소프트 가격은?"
+      ],
+      "runtime": {
+        "data_mode": "yahoo",
+        "llm_mode": "model",
+        "model_name": "gpt-5.4-mini",
+        "agent_models": {
+          "main_agent": "gpt-5.4-mini",
+          "data_collection": "gpt-5.4-mini",
+          "data_analysis": "gpt-5.4-mini",
+          "report": "gpt-5.4-mini",
+          "buy_sell": "gpt-5.4-mini",
+          "risk_management": "gpt-5.4-mini",
+          "order_execution": "gpt-5.4-mini",
+          "log_evaluation": "gpt-5.4-mini",
+          "feedback": "gpt-5.4-mini"
+        },
+        "live_order_enabled": false
+      },
+      "mandate": {
+        "objective": "마이크로소프트 가격은?",
+        "allowed_symbols": [],
+        "excluded_symbols": [],
+        "max_position_weight": 0.2,
+        "max_order_notional": null,
+        "min_cash_weight": null,
+        "risk_tolerance": "medium",
+        "requires_approval_for_live_orders": false,
+        "user_notes": ""
+      },
+      "supervisor_directive": {
+        "objective": "마이크로소프트 가격은?",
+        "focus_symbols": [
+          "AAPL",
+          "MSFT"
+        ],
+        "watch_symbols": [],
+        "guidance": [
+          "마이크로소프트 가격은?"
+        ],
+        "summary": "objective=마이크로소프트 가격은?; focus=AAPL, MSFT"
+      },
+      "market_data": [
+        {
+          "symbol": "AAPL",
+          "latest_price": 100,
+          "broker_exchange_code": null,
+          "news_headlines": [
+            "Apple Is Reportedly Planning 5 New iPhones -- Including a $2,500 Foldable. Here's What It Means for the Stock.",
+            "Warren Buffett's Berkshire Hathaway Owns $41 Billion of Alphabet Stock: Here Are 3 Possible Reasons Why",
+            "Apple (AAPL) Plans 10 Million Foldables And An iPhone Ultra Push"
+          ],
+          "financial_metrics": {
+            "pe_ratio": 20
+          }
+        },
+        {
+          "symbol": "MSFT",
+          "latest_price": 100,
+          "broker_exchange_code": null,
+          "news_headlines": [
+            "ChatGPT-Maker OpenAI Is Headed for a $1 Trillion IPO. The Biggest Winner Could Be Microsoft Stock.",
+            "Nvidia (NVDA) Backs Verkada And Brings In A Microsoft Veteran To Lead Sales",
+            "AI Can't Thrive Without This Stock (Hint: It's Not Nvidia)"
+          ],
+          "financial_metrics": {
+            "pe_ratio": 20
+          }
+        }
+      ],
+      "analysis_signals": [
+        {
+          "symbol": "AAPL",
+          "price_score": 0.5,
+          "news_score": 0.55,
+          "financial_score": 0.7,
+          "total_score": 0.5833,
+          "rationale": "AAPL: price, news, and financial data were reviewed; PE ratio=20; prompt=수집된 시장 데이터를 기반으로 각 종목의 가격 모멘텀, 뉴스 감성, 재무 건전성을 0~1 점수로 평가하고 총점과 분석 근거를 제시하라.."
+        },
+        {
+          "symbol": "MSFT",
+          "price_score": 0.5,
+          "news_score": 0.55,
+          "financial_score": 0.7,
+          "total_score": 0.5833,
+          "rationale": "MSFT: price, news, and financial data were reviewed; PE ratio=20; prompt=수집된 시장 데이터를 기반으로 각 종목의 가격 모멘텀, 뉴스 감성, 재무 건전성을 0~1 점수로 평가하고 총점과 분석 근거를 제시하라.."
+        }
+      ],
+      "investment_reports": [
+        {
+          "symbol": "AAPL",
+          "summary": "signal_strength=0.58; bull=news support present: 3 headline(s); prompt=분석 시그널을 바탕으로 투자 보고서를 작성하라. 강세/약세 포인트, 리스크 플래그, 최대 포지션 비중, 추천 액션 편향, 신호 강도를 포함하라.",
+          "bull_points": [
+            "news support present: 3 headline(s)",
+            "valuation looks reasonable at PE 20"
+          ],
+          "bear_points": [
+            "no material bearish driver identified"
+          ],
+          "risk_flags": [
+            "risk rules passed"
+          ],
+          "risk_approved": true,
+          "max_position_weight": 0.2,
+          "recommended_action_bias": "HOLD",
+          "signal_strength": 0.5833,
+          "rationale": "AAPL: AAPL: price, news, and financial data were reviewed; PE ratio=20; prompt=수집된 시장 데이터를 기반으로 각 종목의 가격 모멘텀, 뉴스 감성, 재무 건전성을 0~1 점수로 평가하고 총점과 분석 근거를 제시하라.. Recommended bias=HOLD with max position weight 0.20. prompt=분석 시그널을 바탕으로 투자 보고서를 작성하라. 강세/약세 포인트, 리스크 플래그, 최대 포지션 비중, 추천 액션 편향, 신호 강도를 포함하라.."
+        },
+        {
+          "symbol": "MSFT",
+          "summary": "signal_strength=0.58; bull=news support present: 3 headline(s); prompt=분석 시그널을 바탕으로 투자 보고서를 작성하라. 강세/약세 포인트, 리스크 플래그, 최대 포지션 비중, 추천 액션 편향, 신호 강도를 포함하라.",
+          "bull_points": [
+            "news support present: 3 headline(s)",
+            "valuation looks reasonable at PE 20"
+          ],
+          "bear_points": [
+            "no material bearish driver identified"
+          ],
+          "risk_flags": [
+            "risk rules passed"
+          ],
+          "risk_approved": true,
+          "max_position_weight": 0.2,
+          "recommended_action_bias": "HOLD",
+          "signal_strength": 0.5833,
+          "rationale": "MSFT: MSFT: price, news, and financial data were reviewed; PE ratio=20; prompt=수집된 시장 데이터를 기반으로 각 종목의 가격 모멘텀, 뉴스 감성, 재무 건전성을 0~1 점수로 평가하고 총점과 분석 근거를 제시하라.. Recommended bias=HOLD with max position weight 0.20. prompt=분석 시그널을 바탕으로 투자 보고서를 작성하라. 강세/약세 포인트, 리스크 플래그, 최대 포지션 비중, 추천 액션 편향, 신호 강도를 포함하라.."
+        }
+      ],
+      "decisions": [
+        {
+          "symbol": "AAPL",
+          "action": "HOLD",
+          "confidence": 0.5833,
+          "rationale": "AAPL: AAPL: price, news, and financial data were reviewed; PE ratio=20; prompt=수집된 시장 데이터를 기반으로 각 종목의 가격 모멘텀, 뉴스 감성, 재무 건전성을 0~1 점수로 평가하고 총점과 분석 근거를 제시하라.. Recommended bias=HOLD with max position weight 0.20. prompt=분석 시그널을 바탕으로 투자 보고서를 작성하라. 강세/약세 포인트, 리스크 플래그, 최대 포지션 비중, 추천 액션 편향, 신호 강도를 포함하라.. prompt=투자 보고서를 기반으로 각 종목에 대해 BUY/SELL/HOLD 결정을 내리고 자신감 점수(0~1)와 근거를 명확히 제시하라.",
+          "risk_approved": true
+        },
+        {
+          "symbol": "MSFT",
+          "action": "HOLD",
+          "confidence": 0.5833,
+          "rationale": "MSFT: MSFT: price, news, and financial data were reviewed; PE ratio=20; prompt=수집된 시장 데이터를 기반으로 각 종목의 가격 모멘텀, 뉴스 감성, 재무 건전성을 0~1 점수로 평가하고 총점과 분석 근거를 제시하라.. Recommended bias=HOLD with max position weight 0.20. prompt=분석 시그널을 바탕으로 투자 보고서를 작성하라. 강세/약세 포인트, 리스크 플래그, 최대 포지션 비중, 추천 액션 편향, 신호 강도를 포함하라.. prompt=투자 보고서를 기반으로 각 종목에 대해 BUY/SELL/HOLD 결정을 내리고 자신감 점수(0~1)와 근거를 명확히 제시하라.",
+          "risk_approved": true
+        }
+      ],
+      "feedback": {
+        "summary": "monitored 2 decision(s); prompt=전체 시스템을 관찰하고 데이터 수집, 데이터 분석, 보고서, 매수/매도 단계에 대한 피드백을 작성하라. 다음 실행에서 재수집 또는 재분석이 필요...; collection_attempts=1; analysis_attempts=1",
+        "collection_feedback": [],
+        "analysis_feedback": [],
+        "report_feedback": [],
+        "decision_feedback": [
+          "AAPL: 판단 보류. 추가 데이터나 재분석을 검토하세요.",
+          "MSFT: 판단 보류. 추가 데이터나 재분석을 검토하세요."
+        ],
+        "follow_up_actions": [
+          "매수/매도 에이전트에 HOLD 근거를 보강하거나 판단 유예 유지"
+        ],
+        "monitored_agents": [
+          "data_collection",
+          "data_analysis",
+          "report",
+          "buy_sell"
+        ]
+      },
+      "mandate_violations": []
+    },
+    "decision": {
+      "symbols": [
+        "AAPL",
+        "MSFT"
+      ],
+      "max_position_weight": 0.2,
+      "mandate": {
+        "objective": "마이크로소프트 가격은?",
+        "allowed_symbols": [],
+        "excluded_symbols": [],
+        "max_position_weight": 0.2,
+        "max_order_notional": null,
+        "min_cash_weight": null,
+        "risk_tolerance": "medium",
+        "requires_approval_for_live_orders": false,
+        "user_notes": ""
+      }
+    },
+    "prompt_overrides": {}
+  },
+  {
+    "experiment_id": "exp-1783171571362",
+    "run_id": "run-f6ba4fe0-54d6-4c8b-8687-ae981f50e8cc",
+    "name": "test 2",
+    "description": "",
+    "created_at": "2026-07-04T13:26:11.362Z",
+    "symbols": [
+      "AAPL",
+      "MSFT"
+    ],
+    "decision_actions": {
+      "AAPL": "HOLD",
+      "MSFT": "HOLD"
+    },
+    "runtime": {
+      "data_mode": "yahoo",
+      "llm_mode": "model",
+      "model_name": "gpt-5.4-mini",
+      "agent_models": {
+        "main_agent": "gpt-5.4-mini",
+        "data_collection": "gpt-5.4-mini",
+        "data_analysis": "gpt-5.4-mini",
+        "report": "gpt-5.4-mini",
+        "buy_sell": "gpt-5.4-mini",
+        "risk_management": "gpt-5.4-mini",
+        "order_execution": "gpt-5.4-mini",
+        "log_evaluation": "gpt-5.4-mini",
+        "feedback": "gpt-5.4-mini"
+      },
+      "live_order_enabled": false
+    },
+    "result": {
+      "run_id": "run-f6ba4fe0-54d6-4c8b-8687-ae981f50e8cc",
+      "created_at": "2026-07-04T13:25:42.905Z",
+      "symbols": [
+        "AAPL",
+        "MSFT"
+      ],
+      "user_prompt": "메인 에이전트가 채팅 지시를 반영해 보수적으로 종목을 검토한다.",
+      "chat_messages": [
+        "실행 요청: AAPL, MSFT / 메인 에이전트가 채팅 지시를 반영해 보수적으로 종목을 검토한다."
+      ],
+      "runtime": {
+        "data_mode": "yahoo",
+        "llm_mode": "model",
+        "model_name": "gpt-5.4-mini",
+        "agent_models": {
+          "main_agent": "gpt-5.4-mini",
+          "data_collection": "gpt-5.4-mini",
+          "data_analysis": "gpt-5.4-mini",
+          "report": "gpt-5.4-mini",
+          "buy_sell": "gpt-5.4-mini",
+          "risk_management": "gpt-5.4-mini",
+          "order_execution": "gpt-5.4-mini",
+          "log_evaluation": "gpt-5.4-mini",
+          "feedback": "gpt-5.4-mini"
+        },
+        "live_order_enabled": false
+      },
+      "mandate": {
+        "objective": "메인 에이전트가 채팅 지시를 반영해 보수적으로 종목을 검토한다.",
+        "allowed_symbols": [],
+        "excluded_symbols": [],
+        "max_position_weight": 0.2,
+        "max_order_notional": null,
+        "min_cash_weight": null,
+        "risk_tolerance": "medium",
+        "requires_approval_for_live_orders": false,
+        "user_notes": ""
+      },
+      "supervisor_directive": {
+        "objective": "메인 에이전트가 채팅 지시를 반영해 보수적으로 종목을 검토한다.",
+        "focus_symbols": [
+          "AAPL",
+          "MSFT"
+        ],
+        "watch_symbols": [],
+        "guidance": [
+          "실행 요청: AAPL, MSFT / 메인 에이전트가 채팅 지시를 반영해 보수적으로 종목을 검토한다."
+        ],
+        "summary": "objective=메인 에이전트가 채팅 지시를 반영해 보수적으로 종목을 검토한다.; focus=AAPL, MSFT"
+      },
+      "market_data": [
+        {
+          "symbol": "AAPL",
+          "latest_price": 100,
+          "broker_exchange_code": null,
+          "news_headlines": [
+            "Why Vanguard’s $143 Billion Tech ETF Outpaced QQQ While Charging Half the Fee",
+            "Dow Jones Futures: Techs' Rise Signal AI Trend Isn't Over; Apple, Robinhood Flash Buy Signals",
+            "Stock Market Volatility: History Says This 1 Investing Move Is More Important Than Ever Before"
+          ],
+          "financial_metrics": {
+            "pe_ratio": 20
+          }
+        },
+        {
+          "symbol": "MSFT",
+          "latest_price": 100,
+          "broker_exchange_code": null,
+          "news_headlines": [
+            "Why Vanguard’s $143 Billion Tech ETF Outpaced QQQ While Charging Half the Fee",
+            "Here is Why Microsoft (MSFT) is One of the Best NASDAQ Stocks to Invest In For Long Term",
+            "Meta’s Bold $6.5 Billion Power Move to Turbocharge Its Cloud and AI Takeover"
+          ],
+          "financial_metrics": {
+            "pe_ratio": 20
+          }
+        }
+      ],
+      "analysis_signals": [
+        {
+          "symbol": "AAPL",
+          "price_score": 0.5,
+          "news_score": 0.55,
+          "financial_score": 0.7,
+          "total_score": 0.5833,
+          "rationale": "AAPL: price, news, and financial data were reviewed; PE ratio=20; prompt=수집된 시장 데이터를 기반으로 각 종목의 가격 모멘텀, 뉴스 감성, 재무 건전성을 0~1 점수로 평가하고 총점과 분석 근거를 제시하라.."
+        },
+        {
+          "symbol": "MSFT",
+          "price_score": 0.5,
+          "news_score": 0.55,
+          "financial_score": 0.7,
+          "total_score": 0.5833,
+          "rationale": "MSFT: price, news, and financial data were reviewed; PE ratio=20; prompt=수집된 시장 데이터를 기반으로 각 종목의 가격 모멘텀, 뉴스 감성, 재무 건전성을 0~1 점수로 평가하고 총점과 분석 근거를 제시하라.."
+        }
+      ],
+      "investment_reports": [
+        {
+          "symbol": "AAPL",
+          "summary": "signal_strength=0.58; bull=news support present: 3 headline(s); prompt=분석 시그널을 바탕으로 투자 보고서를 작성하라. 강세/약세 포인트, 리스크 플래그, 최대 포지션 비중, 추천 액션 편향, 신호 강도를 포함하라.",
+          "bull_points": [
+            "news support present: 3 headline(s)",
+            "valuation looks reasonable at PE 20"
+          ],
+          "bear_points": [
+            "no material bearish driver identified"
+          ],
+          "risk_flags": [
+            "risk rules passed"
+          ],
+          "risk_approved": true,
+          "max_position_weight": 0.2,
+          "recommended_action_bias": "HOLD",
+          "signal_strength": 0.5833,
+          "rationale": "AAPL: AAPL: price, news, and financial data were reviewed; PE ratio=20; prompt=수집된 시장 데이터를 기반으로 각 종목의 가격 모멘텀, 뉴스 감성, 재무 건전성을 0~1 점수로 평가하고 총점과 분석 근거를 제시하라.. Recommended bias=HOLD with max position weight 0.20. prompt=분석 시그널을 바탕으로 투자 보고서를 작성하라. 강세/약세 포인트, 리스크 플래그, 최대 포지션 비중, 추천 액션 편향, 신호 강도를 포함하라.."
+        },
+        {
+          "symbol": "MSFT",
+          "summary": "signal_strength=0.58; bull=news support present: 3 headline(s); prompt=분석 시그널을 바탕으로 투자 보고서를 작성하라. 강세/약세 포인트, 리스크 플래그, 최대 포지션 비중, 추천 액션 편향, 신호 강도를 포함하라.",
+          "bull_points": [
+            "news support present: 3 headline(s)",
+            "valuation looks reasonable at PE 20"
+          ],
+          "bear_points": [
+            "no material bearish driver identified"
+          ],
+          "risk_flags": [
+            "risk rules passed"
+          ],
+          "risk_approved": true,
+          "max_position_weight": 0.2,
+          "recommended_action_bias": "HOLD",
+          "signal_strength": 0.5833,
+          "rationale": "MSFT: MSFT: price, news, and financial data were reviewed; PE ratio=20; prompt=수집된 시장 데이터를 기반으로 각 종목의 가격 모멘텀, 뉴스 감성, 재무 건전성을 0~1 점수로 평가하고 총점과 분석 근거를 제시하라.. Recommended bias=HOLD with max position weight 0.20. prompt=분석 시그널을 바탕으로 투자 보고서를 작성하라. 강세/약세 포인트, 리스크 플래그, 최대 포지션 비중, 추천 액션 편향, 신호 강도를 포함하라.."
+        }
+      ],
+      "decisions": [
+        {
+          "symbol": "AAPL",
+          "action": "HOLD",
+          "confidence": 0.5833,
+          "rationale": "AAPL: AAPL: price, news, and financial data were reviewed; PE ratio=20; prompt=수집된 시장 데이터를 기반으로 각 종목의 가격 모멘텀, 뉴스 감성, 재무 건전성을 0~1 점수로 평가하고 총점과 분석 근거를 제시하라.. Recommended bias=HOLD with max position weight 0.20. prompt=분석 시그널을 바탕으로 투자 보고서를 작성하라. 강세/약세 포인트, 리스크 플래그, 최대 포지션 비중, 추천 액션 편향, 신호 강도를 포함하라.. prompt=투자 보고서를 기반으로 각 종목에 대해 BUY/SELL/HOLD 결정을 내리고 자신감 점수(0~1)와 근거를 명확히 제시하라.",
+          "risk_approved": true
+        },
+        {
+          "symbol": "MSFT",
+          "action": "HOLD",
+          "confidence": 0.5833,
+          "rationale": "MSFT: MSFT: price, news, and financial data were reviewed; PE ratio=20; prompt=수집된 시장 데이터를 기반으로 각 종목의 가격 모멘텀, 뉴스 감성, 재무 건전성을 0~1 점수로 평가하고 총점과 분석 근거를 제시하라.. Recommended bias=HOLD with max position weight 0.20. prompt=분석 시그널을 바탕으로 투자 보고서를 작성하라. 강세/약세 포인트, 리스크 플래그, 최대 포지션 비중, 추천 액션 편향, 신호 강도를 포함하라.. prompt=투자 보고서를 기반으로 각 종목에 대해 BUY/SELL/HOLD 결정을 내리고 자신감 점수(0~1)와 근거를 명확히 제시하라.",
+          "risk_approved": true
+        }
+      ],
+      "feedback": {
+        "summary": "monitored 2 decision(s); prompt=전체 시스템을 관찰하고 데이터 수집, 데이터 분석, 보고서, 매수/매도 단계에 대한 피드백을 작성하라. 다음 실행에서 재수집 또는 재분석이 필요...; collection_attempts=1; analysis_attempts=1",
+        "collection_feedback": [],
+        "analysis_feedback": [],
+        "report_feedback": [],
+        "decision_feedback": [
+          "AAPL: 판단 보류. 추가 데이터나 재분석을 검토하세요.",
+          "MSFT: 판단 보류. 추가 데이터나 재분석을 검토하세요."
+        ],
+        "follow_up_actions": [
+          "매수/매도 에이전트에 HOLD 근거를 보강하거나 판단 유예 유지"
+        ],
+        "monitored_agents": [
+          "data_collection",
+          "data_analysis",
+          "report",
+          "buy_sell"
+        ]
+      },
+      "mandate_violations": []
+    },
+    "decision": {
+      "symbols": [
+        "AAPL",
+        "MSFT"
+      ],
+      "max_position_weight": 0.2,
+      "mandate": {
+        "objective": "메인 에이전트가 채팅 지시를 반영해 보수적으로 종목을 검토한다.",
+        "allowed_symbols": [],
+        "excluded_symbols": [],
+        "max_position_weight": 0.2,
+        "max_order_notional": null,
+        "min_cash_weight": null,
+        "risk_tolerance": "medium",
+        "requires_approval_for_live_orders": false,
+        "user_notes": ""
+      }
+    },
+    "prompt_overrides": {}
+  }
+]

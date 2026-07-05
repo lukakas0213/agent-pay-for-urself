@@ -36,7 +36,7 @@
 ### 데이터 수집 에이전트
 
 * 종목별 시세, 뉴스, 재무 지표를 가져온다.
-* 현재 구현은 `StubMarketDataProvider`를 사용한다.
+* 현재 구현은 기본적으로 `YahooFinanceMarketDataProvider`를 사용하고, `MARKET_DATA_PROVIDER=stub`이면 `StubMarketDataProvider`를 사용한다.
 * 향후 랭그래프에서는 데이터 부족 시 피드백을 받아 재수집 루프에 들어간다.
 
 ### 데이터 분석 에이전트
@@ -64,7 +64,7 @@
 
 ## 현재 구현 상태
 
-현재 저장소는 외부 LangGraph 패키지 대신 내부 `StateGraph` 런타임으로 그래프를 실행한다.
+현재 저장소는 외부 `@langchain/langgraph` 패키지로 그래프를 실행한다.
 
 * 백엔드 진입점: `artifacts/api-server/src/routes/decisions.ts`
 * 오케스트레이터: `artifacts/api-server/src/engine/orchestrator.ts`
@@ -99,4 +99,4 @@
 랭그래프로 옮길 때 구현할 핵심은 아래다.
 
 * 현재 구현은 이미 `main -> data_collection/data_analysis/report/buy_sell/feedback` 노드와 피드백 기반 루프를 사용한다.
-* 다음 단계에서는 외부 `@langchain/langgraph` 패키지로 교체하거나 checkpoint, persistence, streaming을 추가한다.
+* 다음 단계에서는 checkpoint, persistence, streaming을 추가한다.

@@ -112,7 +112,7 @@ export function WorkflowReports() {
             {!items.length && !isLoading ? (
               <div className="empty-panel compact-empty-panel">
                 <h3>저장된 보고서가 없습니다</h3>
-                <p>메인 화면에서 실행 결과를 저장하면 이 목록에 나타난다.</p>
+                <p>메인 화면에서 실행하면 에이전트가 자동 저장한 보고서가 이 목록에 나타난다.</p>
               </div>
             ) : null}
           </div>

@@ -1,4 +1,5 @@
 export type AgentKey =
+  | "main_agent"
   | "data_collection"
   | "data_analysis"
   | "report"
@@ -11,6 +12,11 @@ export interface AgentPromptDefinition {
 }
 
 const defaultPrompts: Record<AgentKey, AgentPromptDefinition> = {
+  main_agent: {
+    label: "메인 에이전트",
+    prompt:
+      "사용자의 질문에 대화형으로 답하고, 필요한 경우 투자 워크플로우를 실행할지 먼저 확인하라. 충분한 정보가 있으면 간결하게 판단을 설명하고, 정보가 부족하면 다음에 물어볼 한 가지를 제안하라.",
+  },
   data_collection: {
     label: "데이터 수집 에이전트",
     prompt:
@@ -41,6 +47,7 @@ const defaultPrompts: Record<AgentKey, AgentPromptDefinition> = {
 const userPrompts: Partial<Record<AgentKey, { prompt: string; updated_at: string }>> = {};
 
 export const agentKeys: AgentKey[] = [
+  "main_agent",
   "data_collection",
   "data_analysis",
   "report",

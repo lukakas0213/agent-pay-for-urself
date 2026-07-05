@@ -96,7 +96,7 @@ tests/                 # 백엔드 워크플로우 테스트
 
 현재 최소 구현에서는 영속 데이터베이스 저장과 실브로커 주문을 기본 경로로 사용하지 않는다.
 
-시장 데이터는 기본적으로 deterministic stub provider를 사용하고, `MARKET_DATA_PROVIDER=yahoo`를 설정하면 `yfinance` 기반 Yahoo Finance provider를 통해 실데이터를 수집할 수 있다. 실제 연동은 명시적인 adapter 또는 repository 계층을 통해 추가한다.
+시장 데이터는 기본적으로 `yfinance` 기반 Yahoo Finance provider를 사용하고, 필요하면 `MARKET_DATA_PROVIDER=stub`으로 deterministic stub provider를 명시적으로 선택할 수 있다. 실제 연동은 명시적인 adapter 또는 repository 계층을 통해 추가한다.
 
 선택적으로 `OPENAI_API_KEY`를 설정하면 공통 LLM 템플릿 계층이 OpenAI Responses API를 사용해 각 에이전트의 구조화 출력을 생성할 수 있다. 기본 모델은 `gpt-5.5`이고, `OPENAI_DATA_COLLECTION_MODEL` 같은 에이전트별 환경 변수로 개별 모델을 덮어쓸 수 있다. 키가 없거나 응답이 유효하지 않으면 현재 deterministic fallback 로직을 사용한다.
 
@@ -108,9 +108,9 @@ tests/                 # 백엔드 워크플로우 테스트
 
 ### 외부 데이터 공급자
 
-* 상태: `Stub + Yahoo Finance option implemented`
+* 상태: `Yahoo Finance default + stub option implemented`
 * 확정된 입력/출력 계약: `MarketDataProvider.get_market_data`
-* 비고: 기본 경로는 deterministic stub provider이며, `MARKET_DATA_PROVIDER=yahoo`일 때 `yfinance` 기반 Yahoo Finance provider를 사용
+* 비고: 기본 경로는 `yfinance` 기반 Yahoo Finance provider이며, `MARKET_DATA_PROVIDER=stub`일 때 deterministic stub provider를 사용
 
 ### 브로커 주문 전송
 

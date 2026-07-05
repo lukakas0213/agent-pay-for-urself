@@ -5,7 +5,7 @@
 * 현재 저장소는 멀티 에이전트 투자 워크플로우의 최소 동작 버전을 가진다.
 * 백엔드는 `artifacts/api-server`, 프론트는 `artifacts/agent-pay-for-urself`에 있다.
 * 실행 결과는 메모리 기반 run 저장소와 로컬 JSON 히스토리에 저장된다.
-* 현재 런타임은 TypeScript 기반 내부 `StateGraph` 컴파일드 그래프다.
+* 현재 런타임은 `@langchain/langgraph` 기반 컴파일드 그래프다.
 
 ## Current Agent Flow
 
@@ -66,7 +66,7 @@ flowchart LR
 
 ## Current Graph Runtime
 
-현재 그래프 런타임은 `artifacts/api-server/src/engine/state-graph.ts` 와 `artifacts/api-server/src/engine/workflow-graph.ts` 에 있다.
+현재 그래프 런타임은 `artifacts/api-server/src/engine/workflow-graph.ts` 에 있다.
 
 이미 하고 있는 일은 다음과 같다.
 
@@ -77,7 +77,6 @@ flowchart LR
 
 아직 하지 않는 일은 다음과 같다.
 
-* 외부 `@langchain/langgraph` 패키지 사용
 * checkpoint persistence
 * streaming / interrupt / resumable execution
 
@@ -91,6 +90,5 @@ flowchart LR
 
 LangGraph로 옮길 때의 목표는 아래다.
 
-* 외부 LangGraph 패키지로 동일 그래프를 교체
 * checkpoint와 durable state를 추가
 * streaming/visualization/debug tooling을 붙인다

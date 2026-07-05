@@ -1,10 +1,7 @@
 import { Router, type IRouter } from "express";
+import { buildKisMockBrokerConfig, getBrokerAdapterName } from "../lib/broker-config";
 
 const router: IRouter = Router();
-
-function firstNonEmpty(...values: Array<string | undefined>) {
-  return values.find((value) => value?.trim())?.trim() ?? "";
-}
 
 function maskAccountNumber(accountNumber: string) {
   if (!accountNumber) return null;
@@ -13,21 +10,17 @@ function maskAccountNumber(accountNumber: string) {
 }
 
 router.get("/account", (_req, res) => {
-  const brokerAdapter = firstNonEmpty(process.env.BROKER_ADAPTER, "kis_mock");
-  const appKey = firstNonEmpty(process.env.KIS_APP_KEY, process.env.KIS_MOCK_APP_KEY);
-  const appSecret = firstNonEmpty(process.env.KIS_APP_SECRET, process.env.KIS_MOCK_APP_SECRET);
-  const accountNumber = firstNonEmpty(process.env.KIS_ACCOUNT_NO, process.env.KIS_MOCK_ACCOUNT_NUMBER);
-  const accountProductCode = firstNonEmpty(
-    process.env.KIS_ACCOUNT_PRODUCT_CODE,
-    process.env.KIS_MOCK_ACCOUNT_PRODUCT_CODE,
-  );
+  const brokerAdapter = getBrokerAdapterName() || "kis_mock";
+  const config = buildKisMockBrokerConfig();
   const broker = brokerAdapter === "kis_mock" ? "한국투자증권" : brokerAdapter;
-  const isConfigured = Boolean(appKey && appSecret && accountNumber && accountProductCode);
+  const isConfigured = Boolean(
+    config.app_key && config.app_secret && config.account_number && config.account_product_code,
+  );
 
   res.json({
     available: isConfigured,
     broker,
-    account_masked: maskAccountNumber(accountNumber),
+    account_masked: maskAccountNumber(config.account_number),
     summary: null,
     holdings: [],
     message: isConfigured

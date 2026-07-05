@@ -1,9 +1,10 @@
 import pino from "pino";
+import { getAppEnv, getLogLevel } from "./runtime-config";
 
-const isProduction = process.env.NODE_ENV === "production";
+const isProduction = getAppEnv() === "production";
 
 export const logger = pino({
-  level: process.env.LOG_LEVEL ?? "info",
+  level: getLogLevel(),
   redact: [
     "req.headers.authorization",
     "req.headers.cookie",

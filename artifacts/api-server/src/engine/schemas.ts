@@ -92,9 +92,9 @@ export interface WorkflowResult {
   chat_messages: string[];
   runtime: {
     data_mode: string;
-    llm_mode: string;
+    llm_mode: "model" | "fallback";
     model_name: string | null;
-    agent_models: null;
+    agent_models: Record<string, string> | null;
     live_order_enabled: boolean;
   };
   mandate: InvestmentMandate;

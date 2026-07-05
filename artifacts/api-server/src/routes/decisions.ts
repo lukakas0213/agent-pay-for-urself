@@ -1,11 +1,12 @@
 import { Router, type IRouter } from "express";
 import { runWorkflow } from "../engine/orchestrator";
 import { addWorkflowRun } from "../lib/history-store";
+import { saveWorkflowResultAsExperiment } from "../lib/experiment-store";
 import type { InvestmentMandate, RiskTolerance } from "../engine/schemas";
 
 const router: IRouter = Router();
 
-router.post("/decisions", (req, res) => {
+router.post("/decisions", async (req, res) => {
   const body = req.body as Record<string, unknown>;
 
   const symbols: string[] = Array.isArray(body.symbols)
@@ -65,7 +66,7 @@ router.post("/decisions", (req, res) => {
     return;
   }
 
-  const result = runWorkflow({
+  const result = await runWorkflow({
     symbols,
     max_position_weight: maxPositionWeight,
     mandate,
@@ -75,6 +76,11 @@ router.post("/decisions", (req, res) => {
   });
 
   addWorkflowRun(result);
+  try {
+    saveWorkflowResultAsExperiment(result);
+  } catch (error) {
+    console.warn("failed to auto-save workflow experiment", error);
+  }
   res.json(result);
 });
 

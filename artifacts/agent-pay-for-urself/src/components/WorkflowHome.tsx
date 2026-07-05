@@ -2,7 +2,6 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   AgentInteractionResponse,
-  DecisionRequest,
   DecisionResponse,
   FrontendWorkspaceSettings,
   RiskTolerance,
@@ -12,16 +11,10 @@ import {
   loadFrontendWorkspaceSettings,
   normalizeDecisionResponse,
   parseSymbols,
+  runtimeAgentStatuses,
   runtimeLabel,
   saveFrontendWorkspaceSettings,
 } from "../lib/workspace";
-
-type ExperimentSaveRequest = {
-  run_id: string;
-  name: string;
-  description: string;
-  result: DecisionResponse;
-};
 
 type ChatEntry = {
   id: string;
@@ -37,7 +30,11 @@ function loadStoredJson<T>(key: string): T | null {
   if (typeof window === "undefined") return null;
   const raw = window.localStorage.getItem(key);
   if (!raw) return null;
-  try { return JSON.parse(raw) as T; } catch { return null; }
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
 }
 
 function saveStoredJson<T>(key: string, value: T) {
@@ -46,68 +43,38 @@ function saveStoredJson<T>(key: string, value: T) {
   }
 }
 
-function nowIso() { return new Date().toISOString(); }
+function nowIso() {
+  return new Date().toISOString();
+}
+
 function buildId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function buildDecisionRequest(
-  symbols: string[],
-  maxPositionWeight: number,
-  userPrompt: string,
-  riskTolerance: RiskTolerance,
-  autoTradingEnabled: boolean,
-  chatMessages: string[],
-): DecisionRequest {
-  return {
-    symbols,
-    max_position_weight: maxPositionWeight,
-    user_prompt: userPrompt.trim(),
-    chat_messages: chatMessages,
-    mandate: {
-      objective: userPrompt.trim() || "채팅 지시를 기반으로 요청 종목을 점검한다.",
-      allowed_symbols: [],
-      excluded_symbols: [],
-      max_order_notional: null,
-      min_cash_weight: null,
-      risk_tolerance: riskTolerance,
-      requires_approval_for_live_orders: !autoTradingEnabled,
-      user_notes: "",
-    },
-  };
-}
-
-function buildAssistantSummary(result: DecisionResponse) {
-  const summary = result.supervisor_directive.summary || "요약 없음";
-  const decisions = result.decisions
-    .map((d) => `${d.symbol} ${actionLabel(d.action)}`)
-    .join(", ");
-  return `실행 완료. 요약: "${summary}"${decisions ? ` / 판단: ${decisions}` : ""}`;
 }
 
 function riskLabel(v: RiskTolerance) {
   return v === "low" ? "낮음" : v === "high" ? "높음" : "보통";
 }
 
+function buildWelcomeText(symbolsInput: string) {
+  const symbols = parseSymbols(symbolsInput);
+  if (symbols.length > 0) {
+    return `메인 에이전트와 대화를 시작하세요. 현재 컨텍스트는 ${symbols.join(", ")} 입니다.`;
+  }
+  return "메인 에이전트와 대화를 시작하세요. 종목을 넣으면 바로 분석 흐름으로 이어갈 수 있습니다.";
+}
+
 export function WorkflowHome() {
   const [settings, setSettings] = useState<FrontendWorkspaceSettings | null>(null);
   const [symbolsInput, setSymbolsInput] = useState("AAPL, MSFT");
   const [maxPositionWeight, setMaxPositionWeight] = useState("0.2");
-  const [userPrompt, setUserPrompt] = useState("메인 에이전트가 채팅 지시를 반영해 보수적으로 종목을 검토한다.");
   const [riskTolerance, setRiskTolerance] = useState<RiskTolerance>("medium");
   const [autoTradingEnabled, setAutoTradingEnabled] = useState(false);
   const [applyChatToWorkflow, setApplyChatToWorkflow] = useState(true);
   const [chatDraft, setChatDraft] = useState("");
   const [chatEntries, setChatEntries] = useState<ChatEntry[]>([]);
   const [result, setResult] = useState<DecisionResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isChatLoading, setIsChatLoading] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveName, setSaveName] = useState("");
-  const [saveDescription, setSaveDescription] = useState("");
+  const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [saveMessage, setSaveMessage] = useState<string | null>(null);
-  const [showSaveForm, setShowSaveForm] = useState(false);
   const threadRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -135,9 +102,8 @@ export function WorkflowHome() {
   const symbols = useMemo(() => parseSymbols(symbolsInput), [symbolsInput]);
   const weight = Number(maxPositionWeight);
   const hasValidWeight = Number.isFinite(weight) && weight > 0 && weight <= 1;
-  const canRun = symbols.length > 0 && hasValidWeight && !isLoading;
-  const canSendFollowup = Boolean(result?.run_id) && chatDraft.trim().length > 0 && !isChatLoading;
-  const hasRun = result !== null;
+  const canSend = chatDraft.trim().length > 0 && !isSending;
+  const runtimeStatuses = useMemo(() => runtimeAgentStatuses(result?.runtime ?? null), [result]);
 
   function persistSettings(next: FrontendWorkspaceSettings) {
     setSettings(next);
@@ -166,59 +132,26 @@ export function WorkflowHome() {
     ]);
   }
 
-  async function handleRun(event: FormEvent<HTMLFormElement>) {
+  async function handleSend(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!canRun) return;
-    setIsLoading(true);
+    const message = chatDraft.trim();
+    if (!message) return;
+
+    setIsSending(true);
     setError(null);
-    setSaveMessage(null);
 
     const nextSettings = settings
-      ? { ...settings, default_symbols: symbolsInput, default_max_position_weight: maxPositionWeight, default_risk_tolerance: riskTolerance, auto_trading_enabled: autoTradingEnabled }
+      ? {
+          ...settings,
+          default_symbols: symbolsInput,
+          default_max_position_weight: maxPositionWeight,
+          default_risk_tolerance: riskTolerance,
+          auto_trading_enabled: autoTradingEnabled,
+        }
       : null;
     if (nextSettings) persistSettings(nextSettings);
 
-    const requestMessage = `실행 요청: ${symbols.join(", ")} / ${userPrompt}`;
-    appendChat({ role: "user", content: requestMessage });
-
-    try {
-      const requestBody = buildDecisionRequest(
-        symbols,
-        weight,
-        userPrompt,
-        riskTolerance,
-        autoTradingEnabled,
-        [...chatEntries, { id: "pending-user", timestamp: nowIso(), role: "user" as const, content: requestMessage }]
-          .filter((e) => e.role === "user")
-          .map((e) => e.content),
-      );
-      const response = await fetchJson<DecisionResponse>("/api/decisions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody),
-      });
-      const normalized = normalizeDecisionResponse(response);
-      if (!normalized) throw new Error("실행 결과를 해석하지 못했습니다.");
-      persistResult(normalized);
-      appendChat({ role: "assistant", content: buildAssistantSummary(normalized) });
-      setSaveName(`${symbols.join(", ")} 실행 보고서`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "실행에 실패했습니다.");
-      appendChat({ role: "system", content: `오류: ${err instanceof Error ? err.message : "실행 실패"}` });
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  async function handleFollowUp(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!result?.run_id || !chatDraft.trim()) return;
-
-    const userMessage = chatDraft.trim();
-    setIsChatLoading(true);
-    setError(null);
-    setSaveMessage(null);
-    appendChat({ role: "user", content: userMessage });
+    appendChat({ role: "user", content: message });
     setChatDraft("");
 
     try {
@@ -226,56 +159,39 @@ export function WorkflowHome() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          run_id: result.run_id,
-          message: userMessage,
+          run_id: result?.run_id ?? null,
+          message,
           apply_to_workflow: applyChatToWorkflow,
           current_result: result,
+          symbols,
+          max_position_weight: hasValidWeight ? weight : 0.2,
+          risk_tolerance: riskTolerance,
+          auto_trading_enabled: autoTradingEnabled,
         }),
       });
+
       appendChat({ role: "assistant", content: response.reply });
+
       const updatedResult = normalizeDecisionResponse(response.updated_result);
       if (response.applied_to_workflow && updatedResult) {
         persistResult(updatedResult);
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "후속 대화 처리에 실패했습니다.");
+    } catch (requestError) {
+      const messageText = requestError instanceof Error ? requestError.message : "메시지를 처리하지 못했습니다.";
+      setError(messageText);
+      appendChat({ role: "system", content: `오류: ${messageText}` });
     } finally {
-      setIsChatLoading(false);
+      setIsSending(false);
     }
   }
 
-  async function handleSave(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!result || isSaving) return;
-    setIsSaving(true);
-    setError(null);
-    setSaveMessage(null);
-    try {
-      await fetchJson<unknown>("/api/experiments/from-run", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          run_id: result.run_id,
-          name: saveName.trim() || `${result.symbols.join(", ")} 실행 보고서`,
-          description: saveDescription.trim(),
-          result,
-        } satisfies ExperimentSaveRequest),
-      });
-      setSaveMessage("보고서 저장소에 보관했습니다.");
-      setShowSaveForm(false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "저장에 실패했습니다.");
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  function handleNewRun() {
+  function handleNewConversation() {
     setResult(null);
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(RESULT_STORAGE_KEY);
+    }
     persistChat([]);
-    setSaveMessage(null);
     setError(null);
-    setShowSaveForm(false);
   }
 
   return (
@@ -284,9 +200,9 @@ export function WorkflowHome() {
         <div className="chat-thread" ref={threadRef}>
           {chatEntries.length === 0 ? (
             <div className="chat-empty">
-              <div className="chat-empty-icon">🤖</div>
+              <div className="chat-empty-icon">AI</div>
               <h3>메인 에이전트와 대화를 시작하세요</h3>
-              <p>종목과 목표를 입력하고 실행하면 에이전트가 분석을 시작합니다.</p>
+              <p>{buildWelcomeText(symbolsInput)}</p>
             </div>
           ) : (
             chatEntries.map((entry) => (
@@ -303,12 +219,14 @@ export function WorkflowHome() {
               </div>
             ))
           )}
-          {(isLoading || isChatLoading) ? (
+          {isSending ? (
             <div className="chat-message chat-message-assistant">
               <span className="chat-avatar chat-avatar-assistant">AI</span>
               <div className="chat-bubble-wrap">
                 <div className="chat-bubble chat-bubble-loading">
-                  <span className="loading-dot" /><span className="loading-dot" /><span className="loading-dot" />
+                  <span className="loading-dot" />
+                  <span className="loading-dot" />
+                  <span className="loading-dot" />
                 </div>
               </div>
             </div>
@@ -317,94 +235,39 @@ export function WorkflowHome() {
 
         {error ? <div className="banner banner-error" style={{ margin: "0 16px" }}>{error}</div> : null}
 
-        <div className="chat-composer">
-          {!hasRun ? (
-            <form onSubmit={handleRun} className="chat-composer-form">
-              <div className="chat-composer-params">
-                <label className="composer-field">
-                  <span>심볼</span>
-                  <input
-                    value={symbolsInput}
-                    onChange={(e) => setSymbolsInput(e.target.value)}
-                    placeholder="AAPL, MSFT"
-                  />
-                </label>
-                <label className="composer-field">
-                  <span>최대 비중</span>
-                  <input
-                    value={maxPositionWeight}
-                    onChange={(e) => setMaxPositionWeight(e.target.value)}
-                    placeholder="0.2"
-                  />
-                </label>
-                <label className="composer-field">
-                  <span>리스크</span>
-                  <select value={riskTolerance} onChange={(e) => setRiskTolerance(e.target.value as RiskTolerance)}>
-                    <option value="low">낮음</option>
-                    <option value="medium">보통</option>
-                    <option value="high">높음</option>
-                  </select>
-                </label>
-              </div>
-              <label className="composer-field">
-                <span>실행 목표</span>
-                <textarea
-                  rows={2}
-                  value={userPrompt}
-                  onChange={(e) => setUserPrompt(e.target.value)}
-                  placeholder="메인 에이전트에게 전달할 투자 목표나 지시를 입력하세요"
-                />
-              </label>
-              <div className="chat-composer-actions">
-                <label className="composer-toggle">
-                  <input
-                    type="checkbox"
-                    checked={autoTradingEnabled}
-                    onChange={(e) => setAutoTradingEnabled(e.target.checked)}
-                  />
-                  자동매매 승인
-                </label>
-                <button className="primary-button" disabled={!canRun} type="submit">
-                  {isLoading ? "실행 중…" : "실행"}
-                </button>
-              </div>
-            </form>
-          ) : (
-            <form onSubmit={handleFollowUp} className="chat-composer-form">
-              <textarea
-                className="chat-input"
-                rows={3}
-                value={chatDraft}
-                onChange={(e) => setChatDraft(e.target.value)}
-                placeholder="후속 질문이나 추가 지시를 입력하세요…"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    if (canSendFollowup) {
-                      e.currentTarget.form?.requestSubmit();
-                    }
-                  }
-                }}
+        <form onSubmit={handleSend} className="chat-composer">
+          <textarea
+            className="chat-input"
+            rows={3}
+            value={chatDraft}
+            onChange={(event) => setChatDraft(event.target.value)}
+            placeholder="메인 에이전트에게 질문하거나, 종목과 함께 분석을 요청하세요…"
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                if (canSend) {
+                  event.currentTarget.form?.requestSubmit();
+                }
+              }
+            }}
+          />
+          <div className="chat-composer-actions">
+            <button type="button" className="secondary-button" onClick={handleNewConversation}>
+              새 대화
+            </button>
+            <label className="composer-toggle">
+              <input
+                type="checkbox"
+                checked={applyChatToWorkflow}
+                onChange={(event) => setApplyChatToWorkflow(event.target.checked)}
               />
-              <div className="chat-composer-actions">
-                <label className="composer-toggle">
-                  <input
-                    type="checkbox"
-                    checked={applyChatToWorkflow}
-                    onChange={(e) => setApplyChatToWorkflow(e.target.checked)}
-                  />
-                  워크플로우 재실행 반영
-                </label>
-                <button type="button" className="secondary-button" onClick={handleNewRun}>
-                  새 실행
-                </button>
-                <button className="primary-button" disabled={!canSendFollowup} type="submit">
-                  {isChatLoading ? "처리 중…" : "전송"}
-                </button>
-              </div>
-            </form>
-          )}
-        </div>
+              워크플로우 재실행 반영
+            </label>
+            <button className="primary-button" disabled={!canSend} type="submit">
+              {isSending ? "응답 중…" : "보내기"}
+            </button>
+          </div>
+        </form>
       </div>
 
       <aside className="chat-rail">
@@ -416,8 +279,73 @@ export function WorkflowHome() {
               <div className="chat-rail-sub">{runtimeLabel(result.runtime)}</div>
             </>
           ) : (
-            <div className="chat-rail-empty">실행 없음</div>
+            <div className="chat-rail-empty">대화 모드</div>
           )}
+        </div>
+
+        <div className="chat-rail-section">
+          <span className="chat-rail-label">대화 컨텍스트</span>
+          <div className="chat-rail-context">
+            <label className="composer-field">
+              <span>심볼</span>
+              <input
+                value={symbolsInput}
+                onChange={(event) => setSymbolsInput(event.target.value)}
+                placeholder="AAPL, MSFT"
+              />
+            </label>
+            <label className="composer-field">
+              <span>최대 비중</span>
+              <input
+                value={maxPositionWeight}
+                onChange={(event) => setMaxPositionWeight(event.target.value)}
+                placeholder="0.2"
+              />
+            </label>
+            <label className="composer-field">
+              <span>리스크</span>
+              <select value={riskTolerance} onChange={(event) => setRiskTolerance(event.target.value as RiskTolerance)}>
+                <option value="low">낮음</option>
+                <option value="medium">보통</option>
+                <option value="high">높음</option>
+              </select>
+            </label>
+          </div>
+          <div className="toggle-row" style={{ marginTop: 12 }}>
+            <label className="toggle-chip">
+              <input
+                checked={autoTradingEnabled}
+                onChange={(event) => setAutoTradingEnabled(event.target.checked)}
+                type="checkbox"
+              />
+              자동매매 승인
+            </label>
+          </div>
+          <div className="toggle-row" style={{ marginTop: 8 }}>
+            <label className="toggle-chip">
+              <input
+                checked={applyChatToWorkflow}
+                onChange={(event) => setApplyChatToWorkflow(event.target.checked)}
+                type="checkbox"
+              />
+              대화와 워크플로우 연결
+            </label>
+          </div>
+          <p className="chat-rail-sub" style={{ marginTop: 12 }}>
+            심볼이 있으면 바로 분석 실행으로 연결되고, 심볼이 없으면 대화형 답변만 받습니다.
+          </p>
+        </div>
+
+        <div className="chat-rail-section">
+          <span className="chat-rail-label">에이전트 연결</span>
+          <div className="chat-rail-agent-statuses">
+            {runtimeStatuses.map((status) => (
+              <div key={status.key} className="chat-rail-agent-status">
+                <span>{status.label}</span>
+                <strong className={status.connected ? "text-success" : "text-muted"}>{status.status}</strong>
+              </div>
+            ))}
+          </div>
         </div>
 
         {result ? (
@@ -437,8 +365,8 @@ export function WorkflowHome() {
             <div className="chat-rail-section">
               <span className="chat-rail-label">종목</span>
               <div className="discover-chip-row">
-                {result.symbols.map((s) => (
-                  <span key={s} className="discover-chip">{s}</span>
+                {result.symbols.map((symbol) => (
+                  <span key={symbol} className="discover-chip">{symbol}</span>
                 ))}
               </div>
             </div>
@@ -447,10 +375,10 @@ export function WorkflowHome() {
               <span className="chat-rail-label">판단</span>
               <div className="chat-rail-decisions">
                 {result.decisions.length > 0 ? (
-                  result.decisions.map((d) => (
-                    <div key={d.symbol} className={`decision-row decision-row-${d.action.toLowerCase()}`}>
-                      <span>{d.symbol}</span>
-                      <strong>{actionLabel(d.action)}</strong>
+                  result.decisions.map((decision) => (
+                    <div key={decision.symbol} className={`decision-row decision-row-${decision.action.toLowerCase()}`}>
+                      <span>{decision.symbol}</span>
+                      <strong>{actionLabel(decision.action)}</strong>
                     </div>
                   ))
                 ) : (
@@ -465,42 +393,13 @@ export function WorkflowHome() {
             </div>
 
             <div className="chat-rail-divider" />
-
-            {saveMessage ? (
-              <div className="banner banner-success" style={{ fontSize: "0.82rem" }}>{saveMessage}</div>
-            ) : null}
-
-            {showSaveForm ? (
-              <form onSubmit={handleSave} className="chat-rail-save-form">
-                <label className="composer-field">
-                  <span>보고서 이름</span>
-                  <input value={saveName} onChange={(e) => setSaveName(e.target.value)} />
-                </label>
-                <label className="composer-field">
-                  <span>설명</span>
-                  <textarea rows={2} value={saveDescription} onChange={(e) => setSaveDescription(e.target.value)} />
-                </label>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button type="button" className="secondary-button" style={{ flex: 1 }} onClick={() => setShowSaveForm(false)}>취소</button>
-                  <button type="submit" className="primary-button" style={{ flex: 1 }} disabled={isSaving}>
-                    {isSaving ? "저장 중…" : "저장"}
-                  </button>
-                </div>
-              </form>
-            ) : (
-              <button
-                type="button"
-                className="primary-button"
-                style={{ width: "100%" }}
-                onClick={() => setShowSaveForm(true)}
-              >
-                보고서로 저장
-              </button>
-            )}
+            <p className="chat-rail-sub" style={{ fontSize: "0.82rem" }}>
+              보고서는 실행 즉시 에이전트가 자동 저장합니다.
+            </p>
           </>
         ) : (
           <div className="chat-rail-hint">
-            <p>실행 후 결과 요약, 종목별 판단, 보고서 저장 기능이 여기에 표시됩니다.</p>
+            <p>대화가 누적되면 여기서 현재 실행, 에이전트 연결, 요약, 판단을 함께 확인할 수 있습니다.</p>
           </div>
         )}
       </aside>

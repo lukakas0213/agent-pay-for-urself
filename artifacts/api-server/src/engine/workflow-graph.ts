@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { Annotation, END, START, StateGraph } from "@langchain/langgraph";
 import { resolveAgentPrompts, type AgentKey } from "../lib/agent-prompts-store";
 import {
   runBuySellAgent,
@@ -6,8 +7,10 @@ import {
   runFeedbackAgent,
   runReportAgent,
 } from "./agents";
-import { StubMarketDataProvider } from "./market-data";
-import { END, START, StateGraph } from "./state-graph";
+import { buildMarketDataProvider } from "./market-data";
+import { getOpenAiRuntimeSummary } from "../lib/openai";
+import { isExperimentLiveOrderEnabled } from "../lib/runtime-config";
+import { supportsLiveBrokerSubmission } from "../lib/broker-config";
 import type {
   AnalysisSignal,
   InvestmentMandate,
@@ -48,10 +51,31 @@ const TICKER_PATTERN = /\b[A-Z]{1,5}\b/g;
 const TICKER_STOP_WORDS = new Set(["BUY", "SELL", "HOLD", "LONG", "SHORT"]);
 const MAX_COLLECTION_ATTEMPTS = 2;
 const MAX_ANALYSIS_ATTEMPTS = 2;
+const WORKFLOW_RECURSION_LIMIT = 32;
 
 type PromptMap = Record<AgentKey, string>;
 
-type WorkflowGraphState = {
+const WorkflowGraphAnnotation = Annotation.Root({
+  request: Annotation<InvestmentRequest>(),
+  mandate: Annotation<InvestmentMandate>(),
+  directive: Annotation<SupervisorDirective | null>(),
+  prompts: Annotation<PromptMap | null>(),
+  resolved_symbols: Annotation<string[]>(),
+  market_data: Annotation<MarketData[]>(),
+  analysis_signals: Annotation<AnalysisSignal[]>(),
+  investment_reports: Annotation<InvestmentReport[]>(),
+  decisions: Annotation<TradeDecision[]>(),
+  feedback: Annotation<WorkflowFeedback | null>(),
+  mandate_violations: Annotation<MandateViolation[]>(),
+  collection_attempts: Annotation<number>(),
+  analysis_attempts: Annotation<number>(),
+  pending_collection_retry: Annotation<boolean>(),
+  pending_analysis_retry: Annotation<boolean>(),
+});
+
+type WorkflowGraphState = typeof WorkflowGraphAnnotation.State;
+
+type WorkflowGraphStateInput = {
   request: InvestmentRequest;
   mandate: InvestmentMandate;
   directive: SupervisorDirective | null;
@@ -68,6 +92,14 @@ type WorkflowGraphState = {
   pending_collection_retry: boolean;
   pending_analysis_retry: boolean;
 };
+
+type WorkflowNodeName =
+  | "data_collection"
+  | "data_analysis"
+  | "report"
+  | "buy_sell"
+  | "feedback_review"
+  | typeof END;
 
 function extractSymbols(...texts: string[]): string[] {
   const extracted: string[] = [];
@@ -192,7 +224,7 @@ function buildDefaultMandate(request: InvestmentRequest): InvestmentMandate {
   };
 }
 
-const provider = new StubMarketDataProvider();
+const provider = buildMarketDataProvider();
 
 function mainAgentNode(state: WorkflowGraphState): WorkflowGraphState {
   const directive = state.directive ?? buildSupervisorDirective(state.request, state.mandate);
@@ -208,8 +240,10 @@ function mainAgentNode(state: WorkflowGraphState): WorkflowGraphState {
   };
 }
 
-function dataCollectionNode(state: WorkflowGraphState): WorkflowGraphState {
-  const marketData = state.resolved_symbols.map((symbol) => provider.getMarketData(symbol));
+async function dataCollectionNode(state: WorkflowGraphState): Promise<WorkflowGraphState> {
+  const marketData = await Promise.all(
+    state.resolved_symbols.map((symbol) => Promise.resolve(provider.getMarketData(symbol))),
+  );
   return {
     ...state,
     market_data: marketData,
@@ -223,7 +257,7 @@ function dataCollectionNode(state: WorkflowGraphState): WorkflowGraphState {
   };
 }
 
-function dataAnalysisNode(state: WorkflowGraphState): WorkflowGraphState {
+async function dataAnalysisNode(state: WorkflowGraphState): Promise<WorkflowGraphState> {
   const prompts = state.prompts;
   if (!prompts) {
     throw new Error("workflow prompts are not initialized");
@@ -231,7 +265,7 @@ function dataAnalysisNode(state: WorkflowGraphState): WorkflowGraphState {
 
   return {
     ...state,
-    analysis_signals: runDataAnalysis(state.market_data, prompts.data_analysis),
+    analysis_signals: await runDataAnalysis(state.market_data, prompts.data_analysis),
     investment_reports: [],
     decisions: [],
     feedback: null,
@@ -240,7 +274,7 @@ function dataAnalysisNode(state: WorkflowGraphState): WorkflowGraphState {
   };
 }
 
-function reportNode(state: WorkflowGraphState): WorkflowGraphState {
+async function reportNode(state: WorkflowGraphState): Promise<WorkflowGraphState> {
   const prompts = state.prompts;
   if (!prompts) {
     throw new Error("workflow prompts are not initialized");
@@ -253,7 +287,7 @@ function reportNode(state: WorkflowGraphState): WorkflowGraphState {
   };
 
   const mandateViolations = checkMandateViolations(state.resolved_symbols, state.mandate);
-  const reports = runReportAgent(
+  const reports = await runReportAgent(
     resolvedRequest,
     state.market_data,
     state.analysis_signals,
@@ -269,7 +303,7 @@ function reportNode(state: WorkflowGraphState): WorkflowGraphState {
   };
 }
 
-function buySellNode(state: WorkflowGraphState): WorkflowGraphState {
+async function buySellNode(state: WorkflowGraphState): Promise<WorkflowGraphState> {
   const prompts = state.prompts;
   if (!prompts) {
     throw new Error("workflow prompts are not initialized");
@@ -277,18 +311,18 @@ function buySellNode(state: WorkflowGraphState): WorkflowGraphState {
 
   return {
     ...state,
-    decisions: runBuySellAgent(state.investment_reports, prompts.buy_sell),
+    decisions: await runBuySellAgent(state.investment_reports, prompts.buy_sell),
     feedback: null,
   };
 }
 
-function feedbackNode(state: WorkflowGraphState): WorkflowGraphState {
+async function feedbackNode(state: WorkflowGraphState): Promise<WorkflowGraphState> {
   const prompts = state.prompts;
   if (!prompts) {
     throw new Error("workflow prompts are not initialized");
   }
 
-  const feedback = runFeedbackAgent(
+  const feedback = await runFeedbackAgent(
     state.decisions,
     state.investment_reports,
     state.market_data,
@@ -316,7 +350,7 @@ function feedbackNode(state: WorkflowGraphState): WorkflowGraphState {
   };
 }
 
-function routeFromMainAgent(state: WorkflowGraphState): string {
+function routeFromMainAgent(state: WorkflowGraphState): WorkflowNodeName {
   if (state.pending_collection_retry || state.market_data.length === 0) {
     return "data_collection";
   }
@@ -330,46 +364,56 @@ function routeFromMainAgent(state: WorkflowGraphState): string {
     return "buy_sell";
   }
   if (state.feedback === null) {
-    return "feedback";
+    return "feedback_review";
   }
   return END;
 }
 
-const workflowGraph = new StateGraph<WorkflowGraphState>()
+const workflowGraph = new StateGraph(WorkflowGraphAnnotation)
   .addNode("main_agent", mainAgentNode)
   .addNode("data_collection", dataCollectionNode)
   .addNode("data_analysis", dataAnalysisNode)
   .addNode("report", reportNode)
   .addNode("buy_sell", buySellNode)
-  .addNode("feedback", feedbackNode)
+  .addNode("feedback_review", feedbackNode)
   .addEdge(START, "main_agent")
-  .addConditionalEdges("main_agent", routeFromMainAgent)
+  .addConditionalEdges("main_agent", routeFromMainAgent, [
+    "data_collection",
+    "data_analysis",
+    "report",
+    "buy_sell",
+    "feedback_review",
+    END,
+  ])
   .addEdge("data_collection", "main_agent")
   .addEdge("data_analysis", "main_agent")
   .addEdge("report", "main_agent")
   .addEdge("buy_sell", "main_agent")
-  .addEdge("feedback", "main_agent")
-  .compile({ maxSteps: 32 });
+  .addEdge("feedback_review", "main_agent")
+  .compile({ name: "investment-workflow" });
 
-export function runWorkflowGraph(request: InvestmentRequest): WorkflowResult {
+export async function runWorkflowGraph(request: InvestmentRequest): Promise<WorkflowResult> {
   const mandate = buildDefaultMandate(request);
-  const finalState = workflowGraph.invoke({
-    request,
-    mandate,
-    directive: null,
-    prompts: null,
-    resolved_symbols: [],
-    market_data: [],
-    analysis_signals: [],
-    investment_reports: [],
-    decisions: [],
-    feedback: null,
-    mandate_violations: [],
-    collection_attempts: 0,
-    analysis_attempts: 0,
-    pending_collection_retry: false,
-    pending_analysis_retry: false,
-  });
+  const finalState = await workflowGraph.invoke(
+    {
+      request,
+      mandate,
+      directive: null,
+      prompts: null,
+      resolved_symbols: [],
+      market_data: [],
+      analysis_signals: [],
+      investment_reports: [],
+      decisions: [],
+      feedback: null,
+      mandate_violations: [],
+      collection_attempts: 0,
+      analysis_attempts: 0,
+      pending_collection_retry: false,
+      pending_analysis_retry: false,
+    } satisfies WorkflowGraphStateInput,
+    { recursionLimit: WORKFLOW_RECURSION_LIMIT },
+  );
 
   if (!finalState.directive || !finalState.prompts || !finalState.feedback) {
     throw new Error("workflow graph did not produce a complete final state");
@@ -383,10 +427,8 @@ export function runWorkflowGraph(request: InvestmentRequest): WorkflowResult {
     chat_messages: request.chat_messages,
     runtime: {
       data_mode: provider.mode_name,
-      llm_mode: "noop",
-      model_name: null,
-      agent_models: null,
-      live_order_enabled: false,
+      ...getOpenAiRuntimeSummary(),
+      live_order_enabled: supportsLiveBrokerSubmission() && isExperimentLiveOrderEnabled(),
     },
     mandate: finalState.mandate,
     supervisor_directive: finalState.directive,

@@ -282,6 +282,9 @@ small { color: var(--text-soft); }
   font-size: 0.8rem;
   font-weight: 600;
 }
+.status-badge-success { background: #eefaf2; color: var(--success); }
+.status-badge-warning { background: #fff6e8; color: #9a6100; }
+.status-badge-muted { background: #eef2f7; color: var(--text-muted); }
 .metric-card {
   padding: 14px 18px;
   border: 1px solid var(--border);
@@ -708,6 +711,12 @@ small { color: var(--text-soft); }
 .chat-rail-hint p { font-size: 0.83rem; color: var(--text-muted); }
 .chat-rail-divider { border-top: 1px solid var(--border); margin: 4px 0 16px; }
 .chat-rail-decisions { display: grid; gap: 4px; }
+.chat-rail-agent-statuses { display: grid; gap: 8px; }
+.chat-rail-agent-status { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; border-radius: 8px; background: #fff; border: 1px solid var(--border); }
+.chat-rail-agent-status span { font-size: 0.82rem; color: var(--text-muted); }
+.chat-rail-agent-status strong { font-size: 0.82rem; }
+.text-success { color: var(--success); }
+.text-muted { color: var(--text-muted); }
 .decision-row {
   display: flex;
   justify-content: space-between;

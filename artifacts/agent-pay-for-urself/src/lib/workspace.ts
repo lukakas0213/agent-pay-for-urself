@@ -3,6 +3,7 @@ import { buildApiUrl } from "./api";
 export type TradeAction = "BUY" | "SELL" | "HOLD";
 export type RiskTolerance = "low" | "medium" | "high";
 export type AgentKey =
+  | "main_agent"
   | "data_collection"
   | "data_analysis"
   | "report"
@@ -85,10 +86,18 @@ export type SupervisorDirective = {
 
 export type RuntimeSummary = {
   data_mode: string;
-  llm_mode: string;
+  llm_mode: "model" | "fallback";
   model_name: string | null;
   agent_models: Record<string, string> | null;
   live_order_enabled: boolean;
+};
+
+export type AgentRuntimeStatus = {
+  key: AgentKey;
+  label: string;
+  model_name: string | null;
+  connected: boolean;
+  status: string;
 };
 
 export type DecisionResponse = {
@@ -125,6 +134,7 @@ export type DecisionRequest = {
 };
 
 export type PromptOverrides = {
+  main_agent: string;
   data_collection: string;
   data_analysis: string;
   report: string;
@@ -234,6 +244,12 @@ export type FrontendWorkspaceSettings = {
 
 export const agentDefinitions: AgentDefinition[] = [
   {
+    key: "main_agent",
+    label: "메인 에이전트",
+    description: "사용자의 질문을 받는 대화형 진입점입니다.",
+    path: "/agents/main_agent",
+  },
+  {
     key: "data_collection",
     label: "데이터 수집 에이전트",
     description: "종목별 시세, 뉴스, 재무 지표를 수집합니다.",
@@ -280,6 +296,7 @@ export const agentNavItems = agentDefinitions.map((agent) => ({
 }));
 
 export const emptyPromptOverrides: PromptOverrides = {
+  main_agent: "",
   data_collection: "",
   data_analysis: "",
   report: "",
@@ -457,6 +474,31 @@ export function runtimeLabel(runtime: RuntimeSummary | null) {
   return `${runtime.data_mode} data / ${runtime.llm_mode}${model}`;
 }
 
+export function runtimeAgentStatuses(runtime: RuntimeSummary | null): AgentRuntimeStatus[] {
+  return agentDefinitions.map((agent) => {
+    if (!runtime) {
+      return {
+        key: agent.key,
+        label: agent.label,
+        model_name: null,
+        connected: false,
+        status: "런타임 정보 없음",
+      };
+    }
+
+    const model_name = runtime.agent_models?.[agent.key] ?? runtime.model_name ?? null;
+    const connected = runtime.llm_mode === "model" && Boolean(model_name);
+
+    return {
+      key: agent.key,
+      label: agent.label,
+      model_name,
+      connected,
+      status: connected ? "연결됨" : runtime.llm_mode === "fallback" ? "미연결" : "정보 부족",
+    };
+  });
+}
+
 function stringOrEmpty(value: unknown) {
   return typeof value === "string" ? value : "";
 }
@@ -518,9 +560,11 @@ function normalizeRuntimeSummary(value: unknown): RuntimeSummary | null {
     return null;
   }
 
+  const llmMode = runtime.llm_mode === "model" ? "model" : "fallback";
+
   return {
     data_mode: stringOrEmpty(runtime.data_mode),
-    llm_mode: stringOrEmpty(runtime.llm_mode),
+    llm_mode: llmMode,
     model_name: typeof runtime.model_name === "string" ? runtime.model_name : null,
     agent_models: stringRecordOrNull(runtime.agent_models),
     live_order_enabled: booleanOrDefault(runtime.live_order_enabled),

@@ -5,6 +5,7 @@ import {
   AgentPromptItem,
   AgentPromptSaveResponse,
   DecisionResponse,
+  runtimeAgentStatuses,
   actionLabel,
   agentDefinitions,
   fetchJson,
@@ -53,6 +54,7 @@ export function AgentWorkspace({ agentKey }: Props) {
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [latestResult, setLatestResult] = useState<DecisionResponse | null>(null);
+  const runtimeStatuses = useMemo(() => runtimeAgentStatuses(latestResult?.runtime ?? null), [latestResult]);
 
   useEffect(() => {
     setLatestResult(loadLatestResult());
@@ -105,6 +107,21 @@ export function AgentWorkspace({ agentKey }: Props) {
   const resultCards = (() => {
     if (!latestResult) {
       return [] as Array<{ title: string; body: string; meta: string }>;
+    }
+
+    if (agentKey === "main_agent") {
+      return [
+        {
+          title: "메인 대화",
+          body: latestResult.supervisor_directive.summary || latestResult.user_prompt || "대화 기록 없음",
+          meta: `${latestResult.symbols.join(", ") || "심볼 없음"} / ${latestResult.chat_messages.length}개 메시지`,
+        },
+        {
+          title: "최근 응답",
+          body: latestResult.feedback.summary || latestResult.feedback.follow_up_actions.join(" / ") || "피드백 없음",
+          meta: latestResult.run_id,
+        },
+      ];
     }
 
     if (agentKey === "data_collection") {
@@ -160,6 +177,29 @@ export function AgentWorkspace({ agentKey }: Props) {
           <span>프롬프트 상태</span>
           <strong>{source === "default" ? "기본값" : "사용자 저장값"}</strong>
           <small>{updatedAt || "업데이트 전"}</small>
+        </div>
+      </section>
+
+      <section className="content-section compact-section">
+        <div className="section-head section-head-spaced">
+          <div>
+            <span className="section-kicker">LLM status</span>
+            <h2>에이전트별 연결 상태</h2>
+          </div>
+          <span className={`status-badge ${latestResult?.runtime?.llm_mode === "model" ? "status-badge-success" : "status-badge-muted"}`}>
+            {latestResult?.runtime?.llm_mode === "model" ? "OpenAI 연결됨" : latestResult?.runtime ? "Fallback" : "실행 전"}
+          </span>
+        </div>
+        <div className="card-grid card-grid-3">
+          {runtimeStatuses.map((status) => (
+            <article className="info-card" key={status.key}>
+              <strong>{status.label}</strong>
+              <span className={`status-badge ${status.connected ? "status-badge-success" : status.model_name ? "status-badge-warning" : "status-badge-muted"}`}>
+                {status.status}
+              </span>
+              <p>{status.model_name ? `model: ${status.model_name}` : "모델 정보 없음"}</p>
+            </article>
+          ))}
         </div>
       </section>
 
